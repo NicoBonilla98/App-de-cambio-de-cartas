@@ -1,10 +1,13 @@
 <!-- filepath: /Users/usuario/Documents/Proyectos python/my_django_project/templates/base.html -->
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Mi Proyecto Django{% endblock %}</title>
+    <title>{% block title %}Maki TCG{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link rel="icon" href="{% static 'favicon.ico' %}?v=2">
 </head>
 <body>
     <header>
