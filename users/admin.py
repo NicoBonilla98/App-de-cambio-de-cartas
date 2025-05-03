@@ -8,10 +8,10 @@ admin.site.register(UserCard)
 @admin.register(CustomUser)
 class CustomUserAdmin(UserAdmin):
     fieldsets = UserAdmin.fieldsets + (
-        ("Información Adicional", {"fields": ("city",)}),
+        ("Información Adicional", {"fields": ("phone_number", "preferred_store", "transaction_preference")}),
     )
-    list_display = ("username", "email", "is_staff", "is_superuser", "city")
-    list_filter = ("is_staff", "is_superuser", "city")
+    list_display = ("username", "email", "is_staff", "is_superuser", "city", "phone_number", "preferred_store", "transaction_preference")
+    list_filter = ("is_staff", "is_superuser", "city", "preferred_store", "transaction_preference")
     search_fields = ("username", "email", "city")
 
 @admin.register(Exchange)

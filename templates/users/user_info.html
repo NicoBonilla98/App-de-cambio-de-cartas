@@ -3,6 +3,10 @@
 {% block content %}
 <h1>Información del Usuario</h1>
 <p><strong>Nombre de Usuario:</strong> {{ username }}</p>
-<p><strong>Ciudad:</strong> {{ city }}</p>
-<a href="{% url 'list_notifications' %}">Volver a Notificaciones</a>
+<p><strong>Ciudad:</strong> {{ user.city }}</p>
+<p><strong>Número de Teléfono:</strong> {{ user.phone_number }}</p>
+<p><strong>Correo Electrónico:</strong> {{ user.email }}</p>
+<p><strong>Tienda de Preferencia:</strong> {{ user.get_preferred_store_display }}</p>
+<p><strong>Preferencia de Transacción:</strong> {{ user.get_transaction_preference_display }}</p>
+<a href="{% url 'edit_profile' %}" class="btn btn-primary">Editar Perfil</a>
 {% endblock %}
