@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Usuarios que poseen {{ searched_card }}</h1>
+
+{% if matching_cards %}
+    <ul>
+        {% for user_card in matching_cards %}
+        <li>
+            {{ user_card.user.username }} - {{ user_card.user.city }}
+            <form method="post" action="{% url 'send_notification' %}" style="display: inline;">
+                {% csrf_token %}
+                <input type="hidden" name="card_name" value="{{ searched_card }}">
+                <input type="hidden" name="owner_id" value="{{ user_card.user.id }}">
+                <button type="submit">Enviar Notificación</button>
+            </form>
+        </li>
+        {% endfor %}
+    </ul>
+{% else %}
+    <p>No hay usuarios que posean esta carta.</p>
+{% endif %}
+
+<a href="{% url 'card_list' %}">Volver a Mis Cartas</a>
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>Lista de Intercambios</h1>
+
+<table>
+    <thead>
+        <tr>
+            <th>Remitente</th>
+            <th>Receptor</th>
+            <th>Cartas del Remitente</th>
+            <th>Cartas del Receptor</th>
+            <th>Fecha</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for exchange in exchanges %}
+        <tr>
+            <td>{{ exchange.sender.username }}</td>
+            <td>{{ exchange.receiver.username }}</td>
+            <td>{{ exchange.sender_cards }}</td>
+            <td>{{ exchange.receiver_cards }}</td>
+            <td>{{ exchange.date }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<a href="{% url 'card_list' %}">Volver a Mis Cartas</a>
+{% endblock %}

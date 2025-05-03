@@ -1,0 +1,47 @@
+{% block content %}
+<h1>Mis Notificaciones</h1>
+
+{% if notifications %}
+    <ul>
+        {% for notification in notifications %}
+        <li>
+            {{ notification.message }} - {{ notification.created_at|date:"d M Y H:i" }}
+            {% if not notification.is_read %}
+                <strong>(No leído)</strong>
+            {% endif %}
+            {% if notification.type == 'action' %}
+                <form method="post" action="{% url 'accept_notification' %}" style="display: inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="notification_id" value="{{ notification.id }}">
+                    <button type="submit">Aceptar</button>
+                </form>
+                <form method="post" action="{% url 'reject_notification' %}" style="display: inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="notification_id" value="{{ notification.id }}">
+                    <button type="submit">Rechazar</button>
+                </form>
+            {% elif notification.type == 'exchange' %}
+                <form method="post" action="{% url 'accept_notification' %}" style="display: inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="notification_id" value="{{ notification.id }}">
+                    <button type="submit">Hacer Cambio</button>
+                </form>
+                <form method="post" action="{% url 'reject_notification' %}" style="display: inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="notification_id" value="{{ notification.id }}">
+                    <button type="submit">Rechazar</button>
+                </form>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    <form method="post" action="{% url 'mark_all_resolved' %}">
+        {% csrf_token %}
+        <button type="submit">Marcar Todas como Resueltas</button>
+    </form>
+{% else %}
+    <p>No tienes notificaciones.</p>
+{% endif %}
+
+<a href="{% url 'card_list' %}">Volver a Mis Cartas</a>
+{% endblock %}

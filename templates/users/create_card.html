@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Crear Nueva Carta</h2>
+<p>Utiliza este formulario para agregar nuevas cartas al sistema.</p>
+<form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Crear Carta</button>
+</form>
+<a href="{% url 'card_list' %}">Volver a la lista de cartas</a>
+{% endblock %}

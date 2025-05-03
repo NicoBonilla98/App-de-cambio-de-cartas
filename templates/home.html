@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Bienvenido a mi proyecto Django</h1>
+
+<!-- Botón para ir a la lista de cartas -->
+<a href="{% url 'card_list' %}">
+    <button>Mis Cartas</button>
+</a>
+
+<!-- Botones de Login y Registro -->
+{% if not user.is_authenticated %}
+    <a href="{% url 'login' %}">
+        <button>Iniciar Sesión</button>
+    </a>
+    <a href="{% url 'register' %}">
+        <button>Registrarse</button>
+    </a>
+{% else %}
+    <p>¡Hola, {{ user.username }}!</p>
+    <form method="get" action="{% url 'search_card' %}">
+        <input type="text" name="card_name" placeholder="Buscar carta deseada">
+        <button type="submit">Buscar</button>
+    </form>
+{% endif %}
+{% endblock %}

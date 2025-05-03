@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>Mis Cartas</h1>
+
+<h2>Cartas Poseídas</h2>
+<ul>
+    {% for card in owned_cards %}
+    <li>
+        {{ card.card.name }} - Precio: ${{ card.card.price }} - Cantidad: {{ card.quantity_owned }}
+        <form method="post" action="{% url 'edit_card_quantity' card.card.id %}">
+            {% csrf_token %}
+            <input type="number" name="edit_card_quantity" value="{{ card.quantity_owned }}" min="1">
+            <button type="submit">Actualizar</button>
+        </form>
+        <a href="{% url 'delete_card' card.card.id %}">Eliminar</a>
+    </li>
+    {% endfor %}
+</ul>
+
+<h3>Valor Total de la Colección</h3>
+<p>
+    ${{ total_collection_value }}
+</p>
+
+<h2>Cartas Deseadas</h2>
+<ul>
+    {% for card in desired_cards %}
+    <li>
+        {{ card.card.name }} - Precio: ${{ card.card.price }} - Cantidad Requerida: {{ card.quantity_required }}
+        <form method="post" action="{% url 'edit_card_quantity' card.card.id %}">
+            {% csrf_token %}
+            <input type="number" name="edit_card_quantity" value="{{ card.quantity_required }}" min="1">
+            <button type="submit">Actualizar</button>
+        </form>
+        <a href="{% url 'search_card_matches' %}?card_name={{ card.card.name }}">Ver quién tiene esta carta</a>
+    </li>
+    {% endfor %}
+</ul>
+
+<form method="get" action="{% url 'search_card' %}">
+    <input type="text" name="card_name" placeholder="Buscar carta">
+    <button type="submit">Buscar</button>
+</form>
+
+<a href="{% url 'register_cards' %}" class="btn btn-primary">Registrar Nueva Carta</a>
+{% endblock %}

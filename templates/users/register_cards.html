@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Registrar Cartas</h2>
+<p>Aquí puedes registrar las cartas que tienes y las que deseas.</p>
+<form method="post">
+    {% csrf_token %}
+    <label for="card_id">Selecciona una carta:</label>
+    <select id="card_id" name="card_id" required>
+        {% for card in cards %}
+        <option value="{{ card.id }}">{{ card.name }}</option>
+        {% endfor %}
+    </select>
+    <br>
+    <label for="card_type">Tipo:</label>
+    <select id="card_type" name="card_type">
+        <option value="owned">En posesión</option>
+        <option value="desired">Deseada</option>
+    </select>
+    <br>
+    <div id="quantity_owned_field" style="display: none;">
+        <label for="quantity_owned">Cantidad poseída:</label>
+        <input type="number" id="quantity_owned" name="quantity_owned" min="0">
+    </div>
+    <div id="quantity_required_field" style="display: none;">
+        <label for="quantity_required">Cantidad requerida:</label>
+        <input type="number" id="quantity_required" name="quantity_required" min="0">
+    </div>
+    <button type="submit">Registrar Carta</button>
+</form>
+
+<a href="{% url 'card_list' %}">Volver a la lista de cartas</a>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const cardTypeSelect = document.getElementById('card_type');
+        const quantityOwnedField = document.getElementById('quantity_owned_field');
+        const quantityRequiredField = document.getElementById('quantity_required_field');
+
+        function toggleFields() {
+            if (cardTypeSelect.value === 'owned') {
+                quantityOwnedField.style.display = 'block';
+                quantityRequiredField.style.display = 'none';
+            } else {
+                quantityOwnedField.style.display = 'none';
+                quantityRequiredField.style.display = 'block';
+            }
+        }
+
+        cardTypeSelect.addEventListener('change', toggleFields);
+        toggleFields(); // Initialize on page load
+    });
+</script>
+{% endblock %}

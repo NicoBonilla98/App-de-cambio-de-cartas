@@ -1,0 +1,8 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>Información del Usuario</h1>
+<p><strong>Nombre de Usuario:</strong> {{ username }}</p>
+<p><strong>Ciudad:</strong> {{ city }}</p>
+<a href="{% url 'list_notifications' %}">Volver a Notificaciones</a>
+{% endblock %}

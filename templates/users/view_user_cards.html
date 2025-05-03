@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>Cartas de {{ selected_user.username }}</h1>
+
+<form method="post" action="{% url 'send_trade_request' %}">
+    {% csrf_token %}
+    <input type="hidden" name="user_id" value="{{ selected_user.id }}">
+    <input type="hidden" name="desired_card" value="{{ searched_card }}">
+
+    <h2>Cartas Disponibles</h2>
+    <ul>
+        {% for card in user_cards %}
+        <li>
+            <input type="checkbox" name="selected_cards" value="{{ card.card.name }}">
+            {{ card.card.name }} - Precio: ${{ card.card.price }} - Cantidad: {{ card.quantity_owned }}
+        </li>
+        {% endfor %}
+    </ul>
+
+    <button type="submit">Proponer Cambio</button>
+</form>
+
+<form method="post" action="{% url 'reject_notification' %}">
+    {% csrf_token %}
+    <input type="hidden" name="notification_id" value="{{ notification_id }}">
+    <button type="submit" class="btn btn-danger">Rechazar Cambio</button>
+</form>
+
+{% endblock %}
