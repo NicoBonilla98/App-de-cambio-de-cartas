@@ -9,11 +9,6 @@ class UserRegisterForm(UserCreationForm):
         model = CustomUser
         fields = ['username', 'email', 'password1', 'password2']
 
-class UserProfileForm(forms.ModelForm):
-    class Meta:
-        model = CustomUser
-        fields = ['city']
-
 class CardForm(forms.ModelForm):
     class Meta:
         model = Card

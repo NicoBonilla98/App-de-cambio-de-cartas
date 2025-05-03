@@ -14,6 +14,7 @@
                 <input type="hidden" name="owner_id" value="{{ user_card.user.id }}">
                 <button type="submit">Enviar Notificación</button>
             </form>
+            <a href="{% url 'view_user_info' user_card.user.id %}" class="btn btn-primary">Hacer oferta de cambio</a>
         </li>
         {% endfor %}
     </ul>

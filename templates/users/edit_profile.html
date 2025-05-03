@@ -9,5 +9,6 @@
     {{ form.as_p }}
     <button type="submit">Guardar Cambios</button>
 </form>
+<a href="{% url 'edit_profile' %}"><button type="button">Editar Perfil</button></a>
 <a href="{% url 'card_list' %}">Volver a Mis Cartas</a>
 {% endblock %}

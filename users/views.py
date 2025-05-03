@@ -2,10 +2,11 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
 from .models import Card, UserCard, CustomUser, Notification, Exchange
-from .forms import UserRegisterForm, UserProfileForm, CardForm
+from .forms import UserRegisterForm, CardForm
 from django.contrib import messages
 from django.db.models import Q
 from django.contrib.auth.forms import UserChangeForm
+from django import forms
 
 @login_required
 def card_list(request):
@@ -149,14 +150,25 @@ def search_users_with_desired_card(request):
 
 @login_required
 def edit_user_profile(request):
+    user_profile, created = CustomUser.objects.get_or_create(id=request.user.id)
+
+    if request.user.id != user_profile.id:
+        messages.error(request, 'No tienes permiso para editar este perfil.')
+        return redirect('view_user_info', user_id=request.user.id)
+
+    class EditProfileForm(forms.ModelForm):
+        class Meta:
+            model = CustomUser
+            fields = ['phone_number', 'preferred_store', 'transaction_preference', 'city']
+
     if request.method == 'POST':
-        form = UserProfileForm(request.POST, instance=request.user)
+        form = EditProfileForm(request.POST, instance=user_profile)
         if form.is_valid():
             form.save()
             messages.success(request, 'Tu perfil ha sido actualizado correctamente.')
-            return redirect('card_list')
+            return redirect('view_user_info', user_id=request.user.id)
     else:
-        form = UserProfileForm(instance=request.user)
+        form = EditProfileForm(instance=user_profile)
 
     return render(request, 'users/edit_profile.html', {'form': form})
 
@@ -324,9 +336,12 @@ def mark_all_resolved(request):
 @login_required
 def view_user_info(request, user_id):
     user = get_object_or_404(CustomUser, id=user_id)
+    user_profile = get_object_or_404(CustomUser, id=user.id)
     return render(request, 'users/user_info.html', {
         'username': user.username,
-        'city': user.profile.city if hasattr(user, 'profile') else 'Ciudad no especificada'
+        'city': user.city,
+        'user': user,
+        'user_profile': user_profile
     })
 
 @login_required
