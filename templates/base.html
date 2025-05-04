@@ -14,7 +14,7 @@
         <nav>
             <a href="{% url 'home' %}">Inicio</a>
             {% if user.is_authenticated %}
-                <a href="{% url 'card_list' %}">Mis cartas</a>
+                <a href="{% url 'card_list' %}" class="btn btn-primary">Mis Cartas</a>
                 <a href="{% url 'view_user_info' request.user.id %}">Mi Perfil</a>
                 <a href="{% url 'list_notifications' %}">Ver Mis Notificaciones</a>
                 <form method="post" action="{% url 'logout' %}" style="display: inline;">
@@ -22,8 +22,8 @@
                     <button type="submit">Cerrar sesión</button>
                 </form>
             {% else %}
-                <a href="{% url 'login' %}">Iniciar sesión</a>
-                <a href="{% url 'register' %}">Registrarse</a>
+                <a href="{% url 'login' %}" class="btn btn-primary">Iniciar Sesión</a>
+                <a href="{% url 'register' %}" class="btn btn-secondary">Registrarse</a>
             {% endif %}
         </nav>
     </header>

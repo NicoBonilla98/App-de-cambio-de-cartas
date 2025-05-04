@@ -228,6 +228,19 @@ def send_trade_request(request):
             type='exchange'  # Tipo de notificación: intercambio
         )
 
+        # Buscar el intercambio existente
+        exchange = Exchange.objects.filter(sender=receiver, receiver=request.user, status='pending').first()
+        if not exchange:
+            messages.error(request, 'No se encontró un intercambio pendiente para actualizar.')
+            return redirect('list_notifications')
+
+        # Actualizar los detalles del intercambio
+        exchange.sender_cards = ', '.join(selected_cards)
+        exchange.receiver_cards = desired_card
+        exchange.save()
+
+        messages.success(request, 'Intercambio actualizado correctamente.')
+
         # Marcar la notificación como resuelta
         if 'notification_id' in request.GET:
             notification_id = request.GET.get('notification_id')
@@ -253,6 +266,17 @@ def send_notification(request):
                 message=message,
                 type='action'  # Tipo de notificación: acción
             )
+
+            # Crear una transacción de tipo 'Cambio'
+            Exchange.objects.create(
+                sender=request.user,
+                receiver=owner,
+                sender_cards='',  # No hay cartas ofrecidas en este caso
+                receiver_cards=card_name,
+                status='pending',
+                exchange_type='trade'
+            )
+
             messages.info(request, f"Notificación enviada a {owner.username}: {message}")
 
         return redirect('card_list')
@@ -348,3 +372,43 @@ def view_user_info(request, user_id):
 def list_exchanges(request):
     exchanges = Exchange.objects.all().order_by('-date')
     return render(request, 'users/exchange_list.html', {'exchanges': exchanges})
+
+@login_required
+def make_purchase_offer(request):
+    if request.method == 'POST':
+        card_name = request.POST.get('card_name')
+        owner_id = request.POST.get('owner_id')
+
+        if card_name and owner_id:
+            owner = get_object_or_404(CustomUser, id=owner_id)
+            message = f"{request.user.username} está interesado en comprar: {card_name}."
+            Notification.objects.create(
+                sender=request.user,
+                receiver=owner,
+                message=message,
+                type='compra'  # Tipo de notificación: compra
+            )
+            messages.success(request, f"Notificación enviada a {owner.username}: {message}")
+
+        return redirect('card_list')
+
+@login_required
+def pending_transactions(request):
+    pending_exchanges = Exchange.objects.filter(receiver=request.user, status='pending')
+    return render(request, 'users/pending_transactions.html', {'pending_exchanges': pending_exchanges})
+
+@login_required
+def accept_exchange(request, exchange_id):
+    exchange = get_object_or_404(Exchange, id=exchange_id, receiver=request.user, status='pending')
+    exchange.status = 'accepted'
+    exchange.save()
+    messages.success(request, 'Intercambio aceptado exitosamente.')
+    return redirect('pending_transactions')
+
+@login_required
+def reject_exchange(request, exchange_id):
+    exchange = get_object_or_404(Exchange, id=exchange_id, receiver=request.user, status='pending')
+    exchange.status = 'rejected'
+    exchange.save()
+    messages.success(request, 'Intercambio rechazado exitosamente.')
+    return redirect('pending_transactions')

@@ -25,13 +25,15 @@ class CustomUser(AbstractUser):
         null=True
     )
     TRANSACTION_PREFERENCE_CHOICES = [
-        ('buy_only', 'Solo Compra'),
         ('sell_only', 'Solo Venta'),
-        ('buy_and_sell', 'Compra y Venta'),
+        ('trade_only', 'Solo Cambio'),
+        ('trade_and_sell', 'Cambio y Venta'),
+        ('display_only', 'Solo Display'),
     ]
     transaction_preference = models.CharField(
         max_length=20,
         choices=TRANSACTION_PREFERENCE_CHOICES,
+        default='trade_and_sell',
         blank=True,
         null=True
     )
@@ -80,6 +82,25 @@ class Exchange(models.Model):
     sender_cards = models.TextField()  # Lista de cartas enviadas por el remitente
     receiver_cards = models.TextField()  # Lista de cartas enviadas por el receptor
     date = models.DateTimeField(auto_now_add=True)
+    STATUS_CHOICES = [
+        ('pending', 'Pendiente'),
+        ('accepted', 'Aceptado'),
+        ('rejected', 'Rechazado'),
+    ]
+    status = models.CharField(
+        max_length=10,
+        choices=STATUS_CHOICES,
+        default='pending'
+    )
+    EXCHANGE_TYPE_CHOICES = [
+        ('sale', 'Venta'),
+        ('trade', 'Cambio'),
+    ]
+    exchange_type = models.CharField(
+        max_length=10,
+        choices=EXCHANGE_TYPE_CHOICES,
+        default='trade'
+    )
 
     def __str__(self):
         return f"Intercambio entre {self.sender.username} y {self.receiver.username} el {self.date}"
