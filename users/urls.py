@@ -32,4 +32,5 @@ urlpatterns = [
     path('pending_transactions/', views.pending_transactions, name='pending_transactions'),
     path('accept_exchange/<int:exchange_id>/', views.accept_exchange, name='accept_exchange'),
     path('reject_exchange/<int:exchange_id>/', views.reject_exchange, name='reject_exchange'),
+    path('upload_file/', views.upload_file, name='upload_file'),
 ]

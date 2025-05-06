@@ -2,11 +2,12 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
 from .models import Card, UserCard, CustomUser, Notification, Exchange
-from .forms import UserRegisterForm, CardForm
+from .forms import UserRegisterForm, CardForm, UploadFileForm
 from django.contrib import messages
 from django.db.models import Q
 from django.contrib.auth.forms import UserChangeForm
 from django import forms
+from collections import Counter
 
 @login_required
 def card_list(request):
@@ -257,18 +258,14 @@ def send_notification(request):
     if request.method == 'POST':
         card_name = request.POST.get('card_name')
         owner_id = request.POST.get('owner_id')
-        if card_name and owner_id:
-            owner = get_object_or_404(CustomUser, id=owner_id)
-            message = f"{request.user.username} busca la carta '{card_name}', ¿quieres revisar sus cartas en posesión?"
-            Notification.objects.create(
-                sender=request.user,
-                receiver=owner,
-                message=message,
-                type='action'  # Tipo de notificación: acción
-            )
 
-            # Crear una transacción de tipo 'Cambio'
-            Exchange.objects.create(
+        if not card_name or not owner_id:
+            messages.error(request, 'Faltan datos para enviar la notificación.')
+            return redirect('card_list')
+
+        try:
+            owner = get_object_or_404(CustomUser, id=owner_id)
+            exchange = Exchange.objects.create(
                 sender=request.user,
                 receiver=owner,
                 sender_cards='',  # No hay cartas ofrecidas en este caso
@@ -276,8 +273,17 @@ def send_notification(request):
                 status='pending',
                 exchange_type='trade'
             )
-
+            message = f"{request.user.username} busca la carta '{card_name}', ¿quieres revisar sus cartas en posesión? (ID de intercambio: {exchange.id})"
+            Notification.objects.create(
+                sender=request.user,
+                receiver=owner,
+                message=message,
+                type='action'
+            )
             messages.info(request, f"Notificación enviada a {owner.username}: {message}")
+        except Exception as e:
+            messages.error(request, f"Error al enviar la notificación: {str(e)}")
+            return redirect('card_list')
 
         return redirect('card_list')
 
@@ -291,6 +297,16 @@ def accept_notification(request):
     if request.method == 'POST':
         notification_id = request.POST.get('notification_id')
         notification = get_object_or_404(Notification, id=notification_id, receiver=request.user)
+
+        # Si la notificación es de tipo exchange, también ejecuta accept_exchange
+        if notification.type == 'exchange':
+            try:
+                exchange = Exchange.objects.get(sender=notification.sender, receiver=request.user, status='pending')
+                exchange.status = 'accepted'
+                exchange.save()
+            except Exchange.DoesNotExist:
+                messages.error(request, 'No se encontró un intercambio pendiente asociado a esta notificación.')
+                return redirect('list_notifications')
 
         # Redirigir a view_user_info si la notificación es de tipo exchange y luego cambiar el estado
         if notification.type == 'exchange':
@@ -370,8 +386,8 @@ def view_user_info(request, user_id):
 
 @login_required
 def list_exchanges(request):
-    exchanges = Exchange.objects.all().order_by('-date')
-    return render(request, 'users/exchange_list.html', {'exchanges': exchanges})
+    user_exchanges = Exchange.objects.filter(Q(sender=request.user) | Q(receiver=request.user)).order_by('-date')
+    return render(request, 'users/exchange_list.html', {'exchanges': user_exchanges})
 
 @login_required
 def make_purchase_offer(request):
@@ -412,3 +428,61 @@ def reject_exchange(request, exchange_id):
     exchange.save()
     messages.success(request, 'Intercambio rechazado exitosamente.')
     return redirect('pending_transactions')
+
+@login_required
+def home(request):
+    # Obtener todas las transacciones aceptadas
+    accepted_exchanges = Exchange.objects.filter(status='accepted')
+
+    # Contar las cartas más repetidas en las transacciones aceptadas
+    all_cards = []
+    for exchange in accepted_exchanges:
+        all_cards.extend(exchange.sender_cards.split(', '))
+        all_cards.extend(exchange.receiver_cards.split(', '))
+
+    most_common_cards = Counter(all_cards).most_common(5)  # Obtener las 5 cartas más repetidas
+
+    return render(request, 'home.html', {'most_common_cards': most_common_cards})
+
+@login_required
+def upload_file(request):
+    if request.method == 'POST':
+        form = UploadFileForm(request.POST, request.FILES)
+        if form.is_valid():
+            uploaded_file = request.FILES['file']
+            extracted_data = []
+            for line in uploaded_file:
+                # Procesar cada línea del archivo
+                line_content = line.decode('utf-8').strip()
+                try:
+                    # Intentar dividir la línea en el formato esperado
+                    if ',' in line_content:
+                        cantidad, nombre_carta, edicion, numero_id_carta = line_content.split(', ')
+                    else:
+                        # Manejar líneas sin comas
+                        parts = line_content.split(' ')
+                        cantidad = parts[0]
+                        numero_id_carta = parts[-1]
+                        edicion = parts[-2].strip('()')
+                        nombre_carta = ' '.join(parts[1:-2])
+
+                    # Guardar la información en la base de datos
+                    Card.objects.create(
+                        name=nombre_carta,
+                        description=f"Edición: {edicion}, Número ID: {numero_id_carta}",
+                        price=0.00  # Puedes ajustar esto según sea necesario
+                    )
+                    extracted_data.append({
+                        'cantidad': cantidad,
+                        'nombre_carta': nombre_carta,
+                        'edicion': edicion,
+                        'numero_id_carta': numero_id_carta
+                    })
+                except Exception as e:
+                    messages.error(request, f"Error al procesar la línea: {line_content}. Detalles: {str(e)}")
+                    continue
+            messages.success(request, 'Archivo procesado y datos guardados correctamente.')
+            return render(request, 'users/upload_file.html', {'form': form, 'extracted_data': extracted_data})
+    else:
+        form = UploadFileForm()
+    return render(request, 'users/upload_file.html', {'form': form})

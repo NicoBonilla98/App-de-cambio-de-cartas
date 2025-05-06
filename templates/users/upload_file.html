@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>Subir Archivo de Cartas</h1>
+
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" class="btn btn-primary">Subir Archivo</button>
+</form>
+
+{% if extracted_data %}
+<h2>Datos Extraídos</h2>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Cantidad</th>
+            <th>Nombre de la Carta</th>
+            <th>Edición</th>
+            <th>ID de la Carta</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for data in extracted_data %}
+        <tr>
+            <td>{{ data.cantidad }}</td>
+            <td>{{ data.nombre_carta }}</td>
+            <td>{{ data.edicion }}</td>
+            <td>{{ data.numero_id_carta }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+<a href="{% url 'card_list' %}" class="btn btn-secondary">Volver a Mis Cartas</a>
+{% endblock %}
