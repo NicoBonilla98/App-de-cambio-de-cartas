@@ -33,4 +33,5 @@ urlpatterns = [
     path('accept_exchange/<int:exchange_id>/', views.accept_exchange, name='accept_exchange'),
     path('reject_exchange/<int:exchange_id>/', views.reject_exchange, name='reject_exchange'),
     path('upload_file/', views.upload_file, name='upload_file'),
+    path('import_cards/', views.import_cards, name='import_cards'),
 ]

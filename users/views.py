@@ -8,6 +8,7 @@ from django.db.models import Q
 from django.contrib.auth.forms import UserChangeForm
 from django import forms
 from collections import Counter
+import json
 
 @login_required
 def card_list(request):
@@ -455,16 +456,11 @@ def upload_file(request):
                 # Procesar cada línea del archivo
                 line_content = line.decode('utf-8').strip()
                 try:
-                    # Intentar dividir la línea en el formato esperado
-                    if ',' in line_content:
-                        cantidad, nombre_carta, edicion, numero_id_carta = line_content.split(', ')
-                    else:
-                        # Manejar líneas sin comas
-                        parts = line_content.split(' ')
-                        cantidad = parts[0]
-                        numero_id_carta = parts[-1]
-                        edicion = parts[-2].strip('()')
-                        nombre_carta = ' '.join(parts[1:-2])
+                    # Dividir la línea en partes según el formato especificado
+                    cantidad, resto = line_content.split(' ', 1)
+                    nombre_carta = resto[:resto.index('(')].strip()
+                    edicion = resto[resto.index('(') + 1:resto.index(')')].strip()
+                    numero_id_carta = resto[resto.index(')') + 1:].strip()
 
                     # Guardar la información en la base de datos
                     Card.objects.create(
@@ -486,3 +482,20 @@ def upload_file(request):
     else:
         form = UploadFileForm()
     return render(request, 'users/upload_file.html', {'form': form})
+
+@login_required
+def import_cards(request):
+    if request.method == 'POST':
+        try:
+            extracted_data = json.loads(request.POST.get('extracted_data', '[]'))
+            for data in extracted_data:
+                UserCard.objects.create(
+                    user=request.user,
+                    card=Card.objects.get_or_create(name=data['nombre_carta'])[0],
+                    quantity_owned=int(data['cantidad']),
+                    is_owned=True
+                )
+            messages.success(request, 'Cartas importadas exitosamente a tus cartas en posesión.')
+        except Exception as e:
+            messages.error(request, f'Error al importar las cartas: {str(e)}')
+        return redirect('card_list')
