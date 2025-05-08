@@ -10,6 +10,32 @@ class CustomUser(AbstractUser):
         ('Ambato', 'Ambato'),
     ]
     city = models.CharField(max_length=50, choices=CITY_CHOICES, default='Quito')
+    phone_number = models.CharField(max_length=15, blank=True, null=True)
+    PREFERRED_STORE_CHOICES = [
+        ('monkey_planet', 'Monkey Planet'),
+        ('baul_del_enano', 'Baul del Enano'),
+        ('dragonscave', 'Dragonscave'),
+        ('camelot', 'Camelot'),
+        ('tiempo_de_juegos', 'Tiempo de Juegos'),
+    ]
+    preferred_store = models.CharField(
+        max_length=20,
+        choices=PREFERRED_STORE_CHOICES,
+        blank=True,
+        null=True
+    )
+    TRANSACTION_PREFERENCE_CHOICES = [
+        ('buy_only', 'Solo Compra'),
+        ('sell_only', 'Solo Venta'),
+        ('buy_and_sell', 'Compra y Venta'),
+    ]
+    transaction_preference = models.CharField(
+        max_length=20,
+        choices=TRANSACTION_PREFERENCE_CHOICES,
+        blank=True,
+        null=True
+    )
+
 
 class Card(models.Model):
     name = models.CharField(max_length=100, unique=True)
