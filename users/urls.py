@@ -34,4 +34,6 @@ urlpatterns = [
     path('reject_exchange/<int:exchange_id>/', views.reject_exchange, name='reject_exchange'),
     path('upload_file/', views.upload_file, name='upload_file'),
     path('import_cards/', views.import_cards, name='import_cards'),
+    path('add_to_desired_cards/', views.create_user_cards_from_txt, name='add_to_desired_cards'),
+    path('add_to_owned_cards/', views.add_to_owned_cards, name='add_to_owned_cards'),
 ]

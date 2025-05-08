@@ -8,6 +8,8 @@ from django.db.models import Q
 from django.contrib.auth.forms import UserChangeForm
 from django import forms
 from collections import Counter
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
 import json
 
 @login_required
@@ -453,21 +455,13 @@ def upload_file(request):
             uploaded_file = request.FILES['file']
             extracted_data = []
             for line in uploaded_file:
-                # Procesar cada línea del archivo
                 line_content = line.decode('utf-8').strip()
                 try:
-                    # Dividir la línea en partes según el formato especificado
                     cantidad, resto = line_content.split(' ', 1)
                     nombre_carta = resto[:resto.index('(')].strip()
                     edicion = resto[resto.index('(') + 1:resto.index(')')].strip()
                     numero_id_carta = resto[resto.index(')') + 1:].strip()
 
-                    # Guardar la información en la base de datos
-                    Card.objects.create(
-                        name=nombre_carta,
-                        description=f"Edición: {edicion}, Número ID: {numero_id_carta}",
-                        price=0.00  # Puedes ajustar esto según sea necesario
-                    )
                     extracted_data.append({
                         'cantidad': cantidad,
                         'nombre_carta': nombre_carta,
@@ -477,7 +471,7 @@ def upload_file(request):
                 except Exception as e:
                     messages.error(request, f"Error al procesar la línea: {line_content}. Detalles: {str(e)}")
                     continue
-            messages.success(request, 'Archivo procesado y datos guardados correctamente.')
+            messages.success(request, 'Archivo procesado correctamente.')
             return render(request, 'users/upload_file.html', {'form': form, 'extracted_data': extracted_data})
     else:
         form = UploadFileForm()
@@ -499,3 +493,45 @@ def import_cards(request):
         except Exception as e:
             messages.error(request, f'Error al importar las cartas: {str(e)}')
         return redirect('card_list')
+
+@csrf_exempt
+def add_to_owned_cards(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.POST.get('extracted_data', '[]'))
+            for card in data:
+                UserCard.objects.create(
+                    user=request.user,
+                    card=Card.objects.get_or_create(name=card['nombre_carta'])[0],
+                    quantity_owned=int(card['cantidad']),
+                    is_owned=True
+                )
+            return JsonResponse({'status': 'success', 'message': 'Cards added to owned list successfully.'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)})
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method.'})
+
+@login_required
+def create_user_cards_from_txt(request):
+    if request.method == 'POST':
+        try:
+            extracted_data = request.POST.get('extracted_data', '[]')
+            if not extracted_data.strip():
+                return JsonResponse({'status': 'error', 'message': 'No data provided in extracted_data.'})
+
+            data = json.loads(extracted_data)
+            for card_data in data:
+                card, created = Card.objects.get_or_create(name=card_data['nombre_carta'])
+                UserCard.objects.create(
+                    user=request.user,
+                    card=card,
+                    is_owned=False,
+                    quantity_owned=0,
+                    quantity_required=int(card_data['cantidad'])
+                )
+            return JsonResponse({'status': 'success', 'message': 'User cards created successfully.'})
+        except json.JSONDecodeError as e:
+            return JsonResponse({'status': 'error', 'message': f'JSON decode error: {str(e)}'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)})
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method.'})

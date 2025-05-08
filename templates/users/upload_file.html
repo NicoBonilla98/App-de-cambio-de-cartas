@@ -32,10 +32,24 @@
     </tbody>
 </table>
 
-<form method="post" action="{% url 'import_cards' %}">
+<script>
+    // Verificar que los datos extraídos no estén vacíos antes de enviarlos
+    const extractedData = JSON.parse(document.getElementById('extractedData').textContent || '[]');
+    if (extractedData.length === 0) {
+        console.error('No hay datos extraídos para enviar.');
+    }
+</script>
+
+<form method="post" action="{% url 'add_to_desired_cards' %}">
     {% csrf_token %}
     <input type="hidden" name="extracted_data" value="{{ extracted_data|json_script:'extractedData' }}">
-    <button type="submit" class="btn btn-success">Importar Cartas a Mis Cartas</button>
+    <button type="submit" class="btn btn-secondary">Subir a Cartas Deseadas</button>
+</form>
+
+<form method="post" action="{% url 'add_to_owned_cards' %}">
+    {% csrf_token %}
+    <input type="hidden" name="extracted_data" value="{{ extracted_data|json_script:'extractedData' }}">
+    <button type="submit" class="btn btn-primary">Subir a Cartas en Posesión</button>
 </form>
 {% endif %}
 
