@@ -13,3 +13,6 @@ class CardForm(forms.ModelForm):
     class Meta:
         model = Card
         fields = ['name', 'description']
+
+class UploadFileForm(forms.Form):
+    file = forms.FileField(label='Selecciona un archivo TXT')

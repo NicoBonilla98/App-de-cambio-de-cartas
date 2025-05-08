@@ -28,4 +28,12 @@ urlpatterns = [
     path('create_card/', views.create_card, name='create_card'),
     path('user_info/<int:user_id>/', views.view_user_info, name='view_user_info'),
     path('exchanges/', views.list_exchanges, name='list_exchanges'),
+    path('make_purchase_offer/', views.make_purchase_offer, name='make_purchase_offer'),
+    path('pending_transactions/', views.pending_transactions, name='pending_transactions'),
+    path('accept_exchange/<int:exchange_id>/', views.accept_exchange, name='accept_exchange'),
+    path('reject_exchange/<int:exchange_id>/', views.reject_exchange, name='reject_exchange'),
+    path('upload_file/', views.upload_file, name='upload_file'),
+    path('import_cards/', views.import_cards, name='import_cards'),
+    path('add_to_desired_cards/', views.create_user_cards_from_txt, name='add_to_desired_cards'),
+    path('add_to_owned_cards/', views.add_to_owned_cards, name='add_to_owned_cards'),
 ]

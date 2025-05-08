@@ -3,16 +3,30 @@
 {% block content %}
 <h1>Cartas de {{ selected_user.username }}</h1>
 
+<script>
+    function calculateTotal() {
+        let checkboxes = document.querySelectorAll('input[name="selected_cards"]:checked');
+        let total = 0;
+        checkboxes.forEach(checkbox => {
+            total += parseFloat(checkbox.dataset.price);
+        });
+        document.getElementById('totalPrice').innerText = `Total: $${total.toFixed(2)}`;
+    }
+</script>
+
+<h3 id="totalPrice">Total: $0.00</h3>
+
 <form method="post" action="{% url 'send_trade_request' %}">
     {% csrf_token %}
     <input type="hidden" name="user_id" value="{{ selected_user.id }}">
     <input type="hidden" name="desired_card" value="{{ searched_card }}">
+    <input type="hidden" name="notification_id" value="{{ notification_id }}">
 
     <h2>Cartas Disponibles</h2>
     <ul>
         {% for card in user_cards %}
         <li>
-            <input type="checkbox" name="selected_cards" value="{{ card.card.name }}">
+            <input type="checkbox" name="selected_cards" value="{{ card.card.name }}" data-price="{{ card.card.price }}" onchange="calculateTotal()">
             {{ card.card.name }} - Precio: ${{ card.card.price }} - Cantidad: {{ card.quantity_owned }}
         </li>
         {% endfor %}

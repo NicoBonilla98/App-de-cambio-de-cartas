@@ -34,6 +34,12 @@
             <button type="submit">Actualizar</button>
         </form>
         <a href="{% url 'search_card_matches' %}?card_name={{ card.card.name }}">Ver quién tiene esta carta</a>
+        <form method="post" action="{% url 'make_purchase_offer' %}">
+            {% csrf_token %}
+            <input type="hidden" name="card_name" value="{{ card.card.name }}">
+            <input type="hidden" name="owner_id" value="{{ card.user.id }}">
+            <button type="submit">Hacer Oferta</button>
+        </form>
     </li>
     {% endfor %}
 </ul>
