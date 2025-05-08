@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>Transacciones Pendientes</h1>
+
+{% if pending_exchanges %}
+    <ul>
+        {% for exchange in pending_exchanges %}
+        <li>
+            Intercambio con {{ exchange.sender.username }} el {{ exchange.date }}
+            <ul>
+                <li>Cartas ofrecidas: {{ exchange.sender_cards }}</li>
+                <li>Cartas recibidas: {{ exchange.receiver_cards }}</li>
+            </ul>
+            <form method="post" action="{% url 'accept_exchange' exchange.id %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-success">Aceptar</button>
+            </form>
+            <form method="post" action="{% url 'reject_exchange' exchange.id %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger">Rechazar</button>
+            </form>
+        </li>
+        {% endfor %}
+    </ul>
+{% else %}
+    <p>No tienes transacciones pendientes.</p>
+{% endif %}
+
+<a href="{% url 'home' %}" class="btn btn-primary">Volver al Inicio</a>
+{% endblock %}

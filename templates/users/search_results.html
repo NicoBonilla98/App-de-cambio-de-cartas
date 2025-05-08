@@ -6,15 +6,39 @@
 {% if matching_cards %}
     <ul>
         {% for user_card in matching_cards %}
-        <li>
-            {{ user_card.user.username }} - {{ user_card.user.city }}
-            <form method="post" action="{% url 'send_notification' %}" style="display: inline;">
-                {% csrf_token %}
-                <input type="hidden" name="card_name" value="{{ searched_card }}">
-                <input type="hidden" name="owner_id" value="{{ user_card.user.id }}">
-                <button type="submit">Enviar Notificación</button>
-            </form>
-        </li>
+            {% if user_card.user.transaction_preference != 'display_only' %}
+            <li>
+                {{ user_card.user.username }} - {{ user_card.user.city }}
+                {% if user_card.user.transaction_preference == 'sell_only' %}
+                    <form method="post" action="{% url 'make_purchase_offer' %}" style="display: inline;">
+                        {% csrf_token %}
+                        <input type="hidden" name="card_name" value="{{ searched_card }}">
+                        <input type="hidden" name="owner_id" value="{{ user_card.user.id }}">
+                        <button type="submit" class="btn btn-primary">Hacer oferta de compra</button>
+                    </form>
+                {% elif user_card.user.transaction_preference == 'trade_only' %}
+                    <form method="post" action="{% url 'send_notification' %}" style="display: inline;">
+                        {% csrf_token %}
+                        <input type="hidden" name="card_name" value="{{ searched_card }}">
+                        <input type="hidden" name="owner_id" value="{{ user_card.user.id }}">
+                        <button type="submit" class="btn btn-secondary">Proponer Cambio</button>
+                    </form>
+                {% elif user_card.user.transaction_preference == 'trade_and_sell' %}
+                    <form method="post" action="{% url 'make_purchase_offer' %}" style="display: inline;">
+                        {% csrf_token %}
+                        <input type="hidden" name="card_name" value="{{ searched_card }}">
+                        <input type="hidden" name="owner_id" value="{{ user_card.user.id }}">
+                        <button type="submit" class="btn btn-primary">Hacer oferta de compra</button>
+                    </form>
+                    <form method="post" action="{% url 'send_notification' %}" style="display: inline;">
+                        {% csrf_token %}
+                        <input type="hidden" name="card_name" value="{{ searched_card }}">
+                        <input type="hidden" name="owner_id" value="{{ user_card.user.id }}">
+                        <button type="submit" class="btn btn-secondary">Proponer Cambio</button>
+                    </form>
+                {% endif %}
+            </li>
+            {% endif %}
         {% endfor %}
     </ul>
 {% else %}

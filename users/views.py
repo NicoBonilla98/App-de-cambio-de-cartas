@@ -2,10 +2,15 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
 from .models import Card, UserCard, CustomUser, Notification, Exchange
-from .forms import UserRegisterForm, UserProfileForm, CardForm
+from .forms import UserRegisterForm, CardForm, UploadFileForm
 from django.contrib import messages
 from django.db.models import Q
 from django.contrib.auth.forms import UserChangeForm
+from django import forms
+from collections import Counter
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+import json
 
 @login_required
 def card_list(request):
@@ -149,14 +154,25 @@ def search_users_with_desired_card(request):
 
 @login_required
 def edit_user_profile(request):
+    user_profile, created = CustomUser.objects.get_or_create(id=request.user.id)
+
+    if request.user.id != user_profile.id:
+        messages.error(request, 'No tienes permiso para editar este perfil.')
+        return redirect('view_user_info', user_id=request.user.id)
+
+    class EditProfileForm(forms.ModelForm):
+        class Meta:
+            model = CustomUser
+            fields = ['phone_number', 'preferred_store', 'transaction_preference', 'city']
+
     if request.method == 'POST':
-        form = UserProfileForm(request.POST, instance=request.user)
+        form = EditProfileForm(request.POST, instance=user_profile)
         if form.is_valid():
             form.save()
             messages.success(request, 'Tu perfil ha sido actualizado correctamente.')
-            return redirect('card_list')
+            return redirect('view_user_info', user_id=request.user.id)
     else:
-        form = UserProfileForm(instance=request.user)
+        form = EditProfileForm(instance=user_profile)
 
     return render(request, 'users/edit_profile.html', {'form': form})
 
@@ -216,6 +232,19 @@ def send_trade_request(request):
             type='exchange'  # Tipo de notificación: intercambio
         )
 
+        # Buscar el intercambio existente
+        exchange = Exchange.objects.filter(sender=receiver, receiver=request.user, status='pending').first()
+        if not exchange:
+            messages.error(request, 'No se encontró un intercambio pendiente para actualizar.')
+            return redirect('list_notifications')
+
+        # Actualizar los detalles del intercambio
+        exchange.sender_cards = ', '.join(selected_cards)
+        exchange.receiver_cards = desired_card
+        exchange.save()
+
+        messages.success(request, 'Intercambio actualizado correctamente.')
+
         # Marcar la notificación como resuelta
         if 'notification_id' in request.GET:
             notification_id = request.GET.get('notification_id')
@@ -232,16 +261,32 @@ def send_notification(request):
     if request.method == 'POST':
         card_name = request.POST.get('card_name')
         owner_id = request.POST.get('owner_id')
-        if card_name and owner_id:
+
+        if not card_name or not owner_id:
+            messages.error(request, 'Faltan datos para enviar la notificación.')
+            return redirect('card_list')
+
+        try:
             owner = get_object_or_404(CustomUser, id=owner_id)
-            message = f"{request.user.username} busca la carta '{card_name}', ¿quieres revisar sus cartas en posesión?"
+            exchange = Exchange.objects.create(
+                sender=request.user,
+                receiver=owner,
+                sender_cards='',  # No hay cartas ofrecidas en este caso
+                receiver_cards=card_name,
+                status='pending',
+                exchange_type='trade'
+            )
+            message = f"{request.user.username} busca la carta '{card_name}', ¿quieres revisar sus cartas en posesión? (ID de intercambio: {exchange.id})"
             Notification.objects.create(
                 sender=request.user,
                 receiver=owner,
                 message=message,
-                type='action'  # Tipo de notificación: acción
+                type='action'
             )
             messages.info(request, f"Notificación enviada a {owner.username}: {message}")
+        except Exception as e:
+            messages.error(request, f"Error al enviar la notificación: {str(e)}")
+            return redirect('card_list')
 
         return redirect('card_list')
 
@@ -255,6 +300,16 @@ def accept_notification(request):
     if request.method == 'POST':
         notification_id = request.POST.get('notification_id')
         notification = get_object_or_404(Notification, id=notification_id, receiver=request.user)
+
+        # Si la notificación es de tipo exchange, también ejecuta accept_exchange
+        if notification.type == 'exchange':
+            try:
+                exchange = Exchange.objects.get(sender=notification.sender, receiver=request.user, status='pending')
+                exchange.status = 'accepted'
+                exchange.save()
+            except Exchange.DoesNotExist:
+                messages.error(request, 'No se encontró un intercambio pendiente asociado a esta notificación.')
+                return redirect('list_notifications')
 
         # Redirigir a view_user_info si la notificación es de tipo exchange y luego cambiar el estado
         if notification.type == 'exchange':
@@ -324,12 +379,159 @@ def mark_all_resolved(request):
 @login_required
 def view_user_info(request, user_id):
     user = get_object_or_404(CustomUser, id=user_id)
+    user_profile = get_object_or_404(CustomUser, id=user.id)
     return render(request, 'users/user_info.html', {
         'username': user.username,
-        'city': user.profile.city if hasattr(user, 'profile') else 'Ciudad no especificada'
+        'city': user.city,
+        'user': user,
+        'user_profile': user_profile
     })
 
 @login_required
 def list_exchanges(request):
-    exchanges = Exchange.objects.all().order_by('-date')
-    return render(request, 'users/exchange_list.html', {'exchanges': exchanges})
+    user_exchanges = Exchange.objects.filter(Q(sender=request.user) | Q(receiver=request.user)).order_by('-date')
+    return render(request, 'users/exchange_list.html', {'exchanges': user_exchanges})
+
+@login_required
+def make_purchase_offer(request):
+    if request.method == 'POST':
+        card_name = request.POST.get('card_name')
+        owner_id = request.POST.get('owner_id')
+
+        if card_name and owner_id:
+            owner = get_object_or_404(CustomUser, id=owner_id)
+            message = f"{request.user.username} está interesado en comprar: {card_name}."
+            Notification.objects.create(
+                sender=request.user,
+                receiver=owner,
+                message=message,
+                type='compra'  # Tipo de notificación: compra
+            )
+            messages.success(request, f"Notificación enviada a {owner.username}: {message}")
+
+        return redirect('card_list')
+
+@login_required
+def pending_transactions(request):
+    pending_exchanges = Exchange.objects.filter(receiver=request.user, status='pending')
+    return render(request, 'users/pending_transactions.html', {'pending_exchanges': pending_exchanges})
+
+@login_required
+def accept_exchange(request, exchange_id):
+    exchange = get_object_or_404(Exchange, id=exchange_id, receiver=request.user, status='pending')
+    exchange.status = 'accepted'
+    exchange.save()
+    messages.success(request, 'Intercambio aceptado exitosamente.')
+    return redirect('pending_transactions')
+
+@login_required
+def reject_exchange(request, exchange_id):
+    exchange = get_object_or_404(Exchange, id=exchange_id, receiver=request.user, status='pending')
+    exchange.status = 'rejected'
+    exchange.save()
+    messages.success(request, 'Intercambio rechazado exitosamente.')
+    return redirect('pending_transactions')
+
+@login_required
+def home(request):
+    # Obtener todas las transacciones aceptadas
+    accepted_exchanges = Exchange.objects.filter(status='accepted')
+
+    # Contar las cartas más repetidas en las transacciones aceptadas
+    all_cards = []
+    for exchange in accepted_exchanges:
+        all_cards.extend(exchange.sender_cards.split(', '))
+        all_cards.extend(exchange.receiver_cards.split(', '))
+
+    most_common_cards = Counter(all_cards).most_common(5)  # Obtener las 5 cartas más repetidas
+
+    return render(request, 'home.html', {'most_common_cards': most_common_cards})
+
+@login_required
+def upload_file(request):
+    if request.method == 'POST':
+        form = UploadFileForm(request.POST, request.FILES)
+        if form.is_valid():
+            uploaded_file = request.FILES['file']
+            extracted_data = []
+            for line in uploaded_file:
+                line_content = line.decode('utf-8').strip()
+                try:
+                    cantidad, resto = line_content.split(' ', 1)
+                    nombre_carta = resto[:resto.index('(')].strip()
+                    edicion = resto[resto.index('(') + 1:resto.index(')')].strip()
+                    numero_id_carta = resto[resto.index(')') + 1:].strip()
+
+                    extracted_data.append({
+                        'cantidad': cantidad,
+                        'nombre_carta': nombre_carta,
+                        'edicion': edicion,
+                        'numero_id_carta': numero_id_carta
+                    })
+                except Exception as e:
+                    messages.error(request, f"Error al procesar la línea: {line_content}. Detalles: {str(e)}")
+                    continue
+            messages.success(request, 'Archivo procesado correctamente.')
+            return render(request, 'users/upload_file.html', {'form': form, 'extracted_data': extracted_data})
+    else:
+        form = UploadFileForm()
+    return render(request, 'users/upload_file.html', {'form': form})
+
+@login_required
+def import_cards(request):
+    if request.method == 'POST':
+        try:
+            extracted_data = json.loads(request.POST.get('extracted_data', '[]'))
+            for data in extracted_data:
+                UserCard.objects.create(
+                    user=request.user,
+                    card=Card.objects.get_or_create(name=data['nombre_carta'])[0],
+                    quantity_owned=int(data['cantidad']),
+                    is_owned=True
+                )
+            messages.success(request, 'Cartas importadas exitosamente a tus cartas en posesión.')
+        except Exception as e:
+            messages.error(request, f'Error al importar las cartas: {str(e)}')
+        return redirect('card_list')
+
+@csrf_exempt
+def add_to_owned_cards(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.POST.get('extracted_data', '[]'))
+            for card in data:
+                UserCard.objects.create(
+                    user=request.user,
+                    card=Card.objects.get_or_create(name=card['nombre_carta'])[0],
+                    quantity_owned=int(card['cantidad']),
+                    is_owned=True
+                )
+            return JsonResponse({'status': 'success', 'message': 'Cards added to owned list successfully.'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)})
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method.'})
+
+@login_required
+def create_user_cards_from_txt(request):
+    if request.method == 'POST':
+        try:
+            extracted_data = request.POST.get('extracted_data', '[]')
+            if not extracted_data.strip():
+                return JsonResponse({'status': 'error', 'message': 'No data provided in extracted_data.'})
+
+            data = json.loads(extracted_data)
+            for card_data in data:
+                card, created = Card.objects.get_or_create(name=card_data['nombre_carta'])
+                UserCard.objects.create(
+                    user=request.user,
+                    card=card,
+                    is_owned=False,
+                    quantity_owned=0,
+                    quantity_required=int(card_data['cantidad'])
+                )
+            return JsonResponse({'status': 'success', 'message': 'User cards created successfully.'})
+        except json.JSONDecodeError as e:
+            return JsonResponse({'status': 'error', 'message': f'JSON decode error: {str(e)}'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)})
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method.'})

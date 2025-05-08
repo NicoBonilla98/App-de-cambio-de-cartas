@@ -9,12 +9,10 @@ class UserRegisterForm(UserCreationForm):
         model = CustomUser
         fields = ['username', 'email', 'password1', 'password2']
 
-class UserProfileForm(forms.ModelForm):
-    class Meta:
-        model = CustomUser
-        fields = ['city']
-
 class CardForm(forms.ModelForm):
     class Meta:
         model = Card
         fields = ['name', 'description']
+
+class UploadFileForm(forms.Form):
+    file = forms.FileField(label='Selecciona un archivo TXT')

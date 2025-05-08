@@ -10,6 +10,34 @@ class CustomUser(AbstractUser):
         ('Ambato', 'Ambato'),
     ]
     city = models.CharField(max_length=50, choices=CITY_CHOICES, default='Quito')
+    phone_number = models.CharField(max_length=15, blank=True, null=True)
+    PREFERRED_STORE_CHOICES = [
+        ('monkey_planet', 'Monkey Planet'),
+        ('baul_del_enano', 'Baul del Enano'),
+        ('dragonscave', 'Dragonscave'),
+        ('camelot', 'Camelot'),
+        ('tiempo_de_juegos', 'Tiempo de Juegos'),
+    ]
+    preferred_store = models.CharField(
+        max_length=20,
+        choices=PREFERRED_STORE_CHOICES,
+        blank=True,
+        null=True
+    )
+    TRANSACTION_PREFERENCE_CHOICES = [
+        ('sell_only', 'Solo Venta'),
+        ('trade_only', 'Solo Cambio'),
+        ('trade_and_sell', 'Cambio y Venta'),
+        ('display_only', 'Solo Display'),
+    ]
+    transaction_preference = models.CharField(
+        max_length=20,
+        choices=TRANSACTION_PREFERENCE_CHOICES,
+        default='trade_and_sell',
+        blank=True,
+        null=True
+    )
+
 
 class Card(models.Model):
     name = models.CharField(max_length=100, unique=True)
@@ -54,6 +82,25 @@ class Exchange(models.Model):
     sender_cards = models.TextField()  # Lista de cartas enviadas por el remitente
     receiver_cards = models.TextField()  # Lista de cartas enviadas por el receptor
     date = models.DateTimeField(auto_now_add=True)
+    STATUS_CHOICES = [
+        ('pending', 'Pendiente'),
+        ('accepted', 'Aceptado'),
+        ('rejected', 'Rechazado'),
+    ]
+    status = models.CharField(
+        max_length=10,
+        choices=STATUS_CHOICES,
+        default='pending'
+    )
+    EXCHANGE_TYPE_CHOICES = [
+        ('sale', 'Venta'),
+        ('trade', 'Cambio'),
+    ]
+    exchange_type = models.CharField(
+        max_length=10,
+        choices=EXCHANGE_TYPE_CHOICES,
+        default='trade'
+    )
 
     def __str__(self):
         return f"Intercambio entre {self.sender.username} y {self.receiver.username} el {self.date}"
