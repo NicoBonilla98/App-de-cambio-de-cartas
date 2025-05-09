@@ -3,14 +3,29 @@
 {% block content %}
 <h2>Registrar Cartas</h2>
 <p>Aquí puedes registrar las cartas que tienes y las que deseas.</p>
-<form method="post">
+
+<form method="get" action="{% url 'search_card' %}">
+    <input type="text" name="card_name" placeholder="Buscar carta">
+    <button type="submit">Buscar</button>
+</form>
+
+{% if matching_cards %}
+<h2>Resultados de la Búsqueda</h2>
+<ul>
+    {% for card in matching_cards %}
+    <li>
+        {{ card.name }}
+        <button type="button" onclick="selectCard('{{ card.name }}', '{{ card.id }}')">Seleccionar</button>
+    </li>
+    {% endfor %}
+</ul>
+{% endif %}
+
+<form method="post" action="{% url 'register_cards' %}">
     {% csrf_token %}
-    <label for="card_id">Selecciona una carta:</label>
-    <select id="card_id" name="card_id" required>
-        {% for card in cards %}
-        <option value="{{ card.id }}">{{ card.name }}</option>
-        {% endfor %}
-    </select>
+    <label for="selected_card">Carta seleccionada:</label>
+    <span id="selected_card">Sin selección</span>
+    <input type="hidden" id="selected_card_id" name="card_id" value="">
     <br>
     <label for="card_type">Tipo:</label>
     <select id="card_type" name="card_type">
@@ -50,5 +65,12 @@
         cardTypeSelect.addEventListener('change', toggleFields);
         toggleFields(); // Initialize on page load
     });
+
+    function selectCard(cardName, cardId) {
+        const selectedCardElement = document.getElementById('selected_card');
+        const selectedCardIdInput = document.getElementById('selected_card_id');
+        selectedCardElement.textContent = cardName;
+        selectedCardIdInput.value = cardId;
+    }
 </script>
 {% endblock %}

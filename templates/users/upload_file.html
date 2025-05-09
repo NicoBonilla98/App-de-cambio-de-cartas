@@ -40,15 +40,14 @@
     }
 </script>
 
-<form method="post" action="{% url 'add_to_desired_cards' %}">
+<form method="post" action="{% url 'card_list' %}">
     {% csrf_token %}
-    <input type="hidden" name="extracted_data" value="{{ extracted_data|json_script:'extractedData' }}">
+    
     <button type="submit" class="btn btn-secondary">Subir a Cartas Deseadas</button>
 </form>
 
-<form method="post" action="{% url 'add_to_owned_cards' %}">
+<form method="post" action="{% url 'card_list' %}">
     {% csrf_token %}
-    <input type="hidden" name="extracted_data" value="{{ extracted_data|json_script:'extractedData' }}">
     <button type="submit" class="btn btn-primary">Subir a Cartas en Posesión</button>
 </form>
 {% endif %}

@@ -18,6 +18,27 @@
     {% endfor %}
 </ul>
 
+<script>
+    function confirmDeletion(actionUrl) {
+        if (confirm("¿Está seguro de querer borrar permanentemente esta información?")) {
+            const form = document.createElement('form');
+            form.method = 'post';
+            form.action = actionUrl;
+
+            const csrfToken = document.createElement('input');
+            csrfToken.type = 'hidden';
+            csrfToken.name = 'csrfmiddlewaretoken';
+            csrfToken.value = '{{ csrf_token }}';
+            form.appendChild(csrfToken);
+
+            document.body.appendChild(form);
+            form.submit();
+        }
+    }
+</script>
+
+<button class="btn btn-danger" onclick="confirmDeletion('{% url 'delete_all_owned_cards' %}')">Borrar Todas las Poseídas</button>
+
 <h3>Valor Total de la Colección</h3>
 <p>
     ${{ total_collection_value }}
@@ -43,6 +64,8 @@
     </li>
     {% endfor %}
 </ul>
+
+<button class="btn btn-danger" onclick="confirmDeletion('{% url 'delete_all_desired_cards' %}')">Borrar Todas las Deseadas</button>
 
 <form method="get" action="{% url 'search_card' %}">
     <input type="text" name="card_name" placeholder="Buscar carta">

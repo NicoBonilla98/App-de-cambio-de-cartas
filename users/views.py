@@ -38,6 +38,22 @@ def delete_card(request, card_id):
     card.delete()
     return redirect('card_list')
 
+@login_required
+def delete_all_owned_cards(request):
+    if request.method == 'POST':
+        UserCard.objects.filter(user=request.user, is_owned=True).delete()
+        messages.success(request, 'Todas las cartas poseídas han sido eliminadas.')
+        return redirect('card_list')
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method.'})
+
+@login_required
+def delete_all_desired_cards(request):
+    if request.method == 'POST':
+        UserCard.objects.filter(user=request.user, is_owned=False).delete()
+        messages.success(request, 'Todas las cartas deseadas han sido eliminadas.')
+        return redirect('card_list')
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method.'})
+
 def register(request):
     if request.method == 'POST':
         form = UserRegisterForm(request.POST)
@@ -89,14 +105,10 @@ def register_cards(request):
 @login_required
 def search_card(request):
     card_name = request.GET.get('card_name', '').strip()
+    matching_cards = []
     if card_name:
-        matching_cards = UserCard.objects.filter(
-            Q(card__name__icontains=card_name),
-            ~Q(user=request.user),
-            is_owned=True
-        )
-        return render(request, 'users/search_results.html', {'matching_cards': matching_cards})
-    return render(request, 'users/search_results.html', {'matching_cards': []})
+        matching_cards = Card.objects.filter(name__icontains=card_name)
+    return render(request, 'users/register_cards.html', {'matching_cards': matching_cards})
 
 @login_required
 def edit_card_quantity(request, card_id):
@@ -471,7 +483,19 @@ def upload_file(request):
                 except Exception as e:
                     messages.error(request, f"Error al procesar la línea: {line_content}. Detalles: {str(e)}")
                     continue
-            messages.success(request, 'Archivo procesado correctamente.')
+
+            # Crear UserCards directamente desde los datos extraídos
+            for card_data in extracted_data:
+                card, created = Card.objects.get_or_create(name=card_data['nombre_carta'])
+                UserCard.objects.create(
+                    user=request.user,
+                    card=card,
+                    is_owned=False,
+                    quantity_owned=0,
+                    quantity_required=int(card_data['cantidad'])
+                )
+
+            messages.success(request, 'Archivo procesado y cartas creadas correctamente.')
             return render(request, 'users/upload_file.html', {'form': form, 'extracted_data': extracted_data})
     else:
         form = UploadFileForm()
@@ -498,29 +522,27 @@ def import_cards(request):
 def add_to_owned_cards(request):
     if request.method == 'POST':
         try:
-            data = json.loads(request.POST.get('extracted_data', '[]'))
-            for card in data:
+            extracted_data = json.loads(request.POST.get('extracted_data', '[]'))
+            for card_data in extracted_data:
+                card, created = Card.objects.get_or_create(name=card_data['nombre_carta'])
                 UserCard.objects.create(
                     user=request.user,
-                    card=Card.objects.get_or_create(name=card['nombre_carta'])[0],
-                    quantity_owned=int(card['cantidad']),
-                    is_owned=True
+                    card=card,
+                    is_owned=True,
+                    quantity_owned=int(card_data['cantidad']),
+                    quantity_required=0
                 )
-            return JsonResponse({'status': 'success', 'message': 'Cards added to owned list successfully.'})
+            return JsonResponse({'status': 'success', 'message': 'User cards added to owned list successfully.'})
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)})
     return JsonResponse({'status': 'error', 'message': 'Invalid request method.'})
 
 @login_required
-def create_user_cards_from_txt(request):
+def import_card_to_desired_list(request):
     if request.method == 'POST':
         try:
-            extracted_data = request.POST.get('extracted_data', '[]')
-            if not extracted_data.strip():
-                return JsonResponse({'status': 'error', 'message': 'No data provided in extracted_data.'})
-
-            data = json.loads(extracted_data)
-            for card_data in data:
+            extracted_data = json.loads(request.POST.get('extracted_data', '[]'))
+            for card_data in extracted_data:
                 card, created = Card.objects.get_or_create(name=card_data['nombre_carta'])
                 UserCard.objects.create(
                     user=request.user,
@@ -530,8 +552,6 @@ def create_user_cards_from_txt(request):
                     quantity_required=int(card_data['cantidad'])
                 )
             return JsonResponse({'status': 'success', 'message': 'User cards created successfully.'})
-        except json.JSONDecodeError as e:
-            return JsonResponse({'status': 'error', 'message': f'JSON decode error: {str(e)}'})
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)})
     return JsonResponse({'status': 'error', 'message': 'Invalid request method.'})
