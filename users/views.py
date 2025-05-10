@@ -11,6 +11,10 @@ from collections import Counter
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 import json
+import requests
+import logging
+
+logger = logging.getLogger(__name__)
 
 @login_required
 def card_list(request):
@@ -555,3 +559,21 @@ def import_card_to_desired_list(request):
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)})
     return JsonResponse({'status': 'error', 'message': 'Invalid request method.'})
+
+@login_required
+def consultar_carta(request):
+    card_name = request.GET.get('card_name', '').strip()
+    api_data = None
+
+    if card_name:
+        logger.debug(f"Received card_name: {card_name}")
+        # Consultar la API de Scryfall
+        response = requests.get(f"https://api.scryfall.com/cards/named?fuzzy={card_name}")
+        logger.debug(f"API Response Status: {response.status_code}")
+        if response.status_code == 200:
+            api_data = response.json()
+            logger.debug(f"API Response Data: {api_data}")
+        else:
+            api_data = {'error': 'No se encontró ninguna carta con ese nombre en la API de Scryfall.'}
+
+    return render(request, 'users/consultar_carta.html', {'api_data': api_data})

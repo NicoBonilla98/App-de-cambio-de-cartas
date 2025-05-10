@@ -38,4 +38,5 @@ urlpatterns = [
     path('add_to_owned_cards/', views.add_to_owned_cards, name='add_to_owned_cards'),
     path('delete_all_owned_cards/', views.delete_all_owned_cards, name='delete_all_owned_cards'),
     path('delete_all_desired_cards/', views.delete_all_desired_cards, name='delete_all_desired_cards'),
+    path('consultar_carta/', views.consultar_carta, name='consultar_carta'),
 ]

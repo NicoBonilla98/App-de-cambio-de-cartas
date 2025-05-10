@@ -18,6 +18,7 @@
                 <a href="{% url 'view_user_info' request.user.id %}">Mi Perfil</a>
                 <a href="{% url 'list_notifications' %}">Ver Mis Notificaciones</a>
                 <a href="{% url 'upload_file' %}" class="btn btn-primary">Importar Cartas</a>
+                <a href="{% url 'consultar_carta' %}" class="btn btn-secondary">Consultar Carta</a>
                 <form method="post" action="{% url 'logout' %}" style="display: inline;">
                     {% csrf_token %}
                     <button type="submit">Cerrar sesión</button>
