@@ -1,0 +1,18 @@
+<h1>Consultar Carta</h1>
+<form method="get" action="{% url 'consultar_carta' %}">
+    <input type="text" name="card_name" placeholder="Nombre de la carta">
+    <button type="submit">Buscar</button>
+</form>
+
+{% if api_data and not api_data.error %}
+<h2>Detalles de la Carta</h2>
+<ul>
+    <li>Nombre: {{ api_data.name }}</li>
+    <li>Descripción: {{ api_data.oracle_text }}</li>
+    <li>Precio: ${{ api_data.prices.usd }}</li>
+</ul>
+{% elif api_data and api_data.error %}
+<p>{{ api_data.error }}</p>
+{% else %}
+<p>No se encontró ninguna carta con ese nombre.</p>
+{% endif %}
