@@ -13,6 +13,7 @@ from django.views.decorators.csrf import csrf_exempt
 import json
 import requests
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -564,16 +565,15 @@ def import_card_to_desired_list(request):
 def consultar_carta(request):
     card_name = request.GET.get('card_name', '').strip()
     api_data = None
+    search_results = None
 
     if card_name:
-        logger.debug(f"Received card_name: {card_name}")
-        # Consultar la API de Scryfall
+        time.sleep(0.05)  # Add a delay of 50 milliseconds to respect the API rate limit
         response = requests.get(f"https://api.scryfall.com/cards/named?fuzzy={card_name}")
-        logger.debug(f"API Response Status: {response.status_code}")
         if response.status_code == 200:
             api_data = response.json()
-            logger.debug(f"API Response Data: {api_data}")
         else:
             api_data = {'error': 'No se encontró ninguna carta con ese nombre en la API de Scryfall.'}
 
-    return render(request, 'users/consultar_carta.html', {'api_data': api_data})
+
+    return render(request, 'users/consultar_carta.html', {'api_data': api_data, 'search_results': search_results})
