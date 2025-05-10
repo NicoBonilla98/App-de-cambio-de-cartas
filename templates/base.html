@@ -29,6 +29,8 @@
             <a class="text-decoration-none" href="{% url 'card_list' %}">Mis cartas</a>
             <a class="text-decoration-none" href="{% url 'edit_user_profile' %}">Mi Perfil</a>
             <a class="text-decoration-none" href="{% url 'list_notifications' %}">Notificaciones</a>
+            <a href="{% url 'upload_file' %}" class="btn btn-primary">Subir Archivo</a>
+            <a href="{% url 'consultar_carta' %}" class="btn btn-secondary">Consultar Carta</a>
             <form method="post" action="{% url 'logout' %}">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-link nav-link">Cerrar sesión</button>
@@ -67,6 +69,12 @@
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" href="{% url 'list_notifications' %}">Ver Mis Notificaciones</a>
+                </li>
+                <li class="nav-item">
+                    <a href="{% url 'upload_file' %}" class="btn btn-primary">Subir Archivo</a>
+                </li>
+                <li class="nav-item">
+                    <a href="{% url 'consultar_carta' %}" class="btn btn-secondary">Consultar Carta</a>
                 </li>
                 <li class="nav-item">
                     <form method="post" action="{% url 'logout' %}">
