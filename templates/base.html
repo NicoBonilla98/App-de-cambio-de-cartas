@@ -27,7 +27,7 @@
             <a href="{% url 'home' %}" class="text-decoration-none">Inicio</a>
             {% if user.is_authenticated %}
             <a class="text-decoration-none" href="{% url 'card_list' %}">Mis cartas</a>
-            <a class="text-decoration-none" href="{% url 'edit_user_profile' %}">Mi Perfil</a>
+            <a class="text-decoration-none" href="{% url 'edit_profile' %}">Mi Perfil</a>
             <a class="text-decoration-none" href="{% url 'list_notifications' %}">Notificaciones</a>
             <a href="{% url 'upload_file' %}" class="btn btn-primary">Subir Archivo</a>
             <a href="{% url 'consultar_carta' %}" class="btn btn-secondary">Consultar Carta</a>
@@ -65,7 +65,7 @@
                     <a class="nav-link" href="{% url 'card_list' %}">Mis cartas</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="{% url 'edit_user_profile' %}">Mi Perfil</a>
+                    <a class="nav-link" href="{% url 'edit_profile' %}">Mi Perfil</a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" href="{% url 'list_notifications' %}">Ver Mis Notificaciones</a>
