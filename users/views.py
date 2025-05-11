@@ -565,7 +565,6 @@ def import_card_to_desired_list(request):
 def consultar_carta(request):
     card_name = request.GET.get('card_name', '').strip()
     api_data = None
-    search_results = None
 
     if card_name:
         time.sleep(0.05)  # Add a delay of 50 milliseconds to respect the API rate limit
@@ -573,7 +572,11 @@ def consultar_carta(request):
         if response.status_code == 200:
             api_data = response.json()
         else:
-            api_data = {'error': 'No se encontró ninguna carta con ese nombre en la API de Scryfall.'}
+            # If no card is found, perform a broader search
+            response = requests.get(f"https://api.scryfall.com/cards/search?q={card_name}")
+            if response.status_code == 200:
+                api_data = response.json()
+            else:
+                api_data = {'error': 'No se encontraron cartas con ese nombre en la API de Scryfall.'}
 
-
-    return render(request, 'users/consultar_carta.html', {'api_data': api_data, 'search_results': search_results})
+    return render(request, 'users/consultar_carta.html', {'api_data': api_data})
