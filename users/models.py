@@ -60,21 +60,6 @@ class UserCard(models.Model):
     def __str__(self):
         return f"{self.user.username} - {self.card.name} ({'Poseída' if self.is_owned else 'Deseada'})"
 
-class Notification(models.Model):
-    sender = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="sent_notifications")
-    receiver = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="received_notifications")
-    message = models.TextField()
-    created_at = models.DateTimeField(auto_now_add=True)
-    is_read = models.BooleanField(default=False)
-    TYPE_CHOICES = [
-        ('info', 'Informativo'),
-        ('action', 'Acción'),
-        ('error', 'Error')
-    ]
-    type = models.CharField(max_length=10, choices=TYPE_CHOICES, default='info')
-
-    def __str__(self):
-        return f"Notificación de {self.sender.username} para {self.receiver.username}: {self.message}"
 
 class Exchange(models.Model):
     sender = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='sent_exchanges')
@@ -104,3 +89,20 @@ class Exchange(models.Model):
 
     def __str__(self):
         return f"Intercambio entre {self.sender.username} y {self.receiver.username} el {self.date}"
+    
+class Notification(models.Model):
+    sender = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="sent_notifications")
+    receiver = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="received_notifications")
+    message = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_read = models.BooleanField(default=False)
+    TYPE_CHOICES = [
+        ('info', 'Informativo'),
+        ('action', 'Acción'),
+        ('error', 'Error')
+    ]
+    type = models.CharField(max_length=10, choices=TYPE_CHOICES, default='info')
+    transaction = models.ForeignKey(Exchange, on_delete=models.CASCADE, null=True, blank=True, related_name='notifications')
+
+    def __str__(self):
+        return f"Notificación de {self.sender.username} para {self.receiver.username}: {self.message}"
