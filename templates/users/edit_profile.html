@@ -7,8 +7,13 @@
 <form method="post">
     {% csrf_token %}
     {{ form.as_p }}
+    <div class="mb-3">
+        <label for="id_profile_picture" class="form-label">Foto de Perfil</label>
+        <input type="file" name="profile_picture" class="form-control" id="id_profile_picture">
+    </div>
     <button type="submit">Guardar Cambios</button>
 </form>
+<img src="{{ user.profile.profile_picture.url }}" alt="Foto de Perfil" class="img-thumbnail mt-3">
 <a href="{% url 'edit_profile' %}"><button type="button">Editar Perfil</button></a>
 <a href="{% url 'card_list' %}">Volver a Mis Cartas</a>
 {% endblock %}

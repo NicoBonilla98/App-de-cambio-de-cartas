@@ -180,10 +180,10 @@ def edit_user_profile(request):
     class EditProfileForm(forms.ModelForm):
         class Meta:
             model = CustomUser
-            fields = ['phone_number', 'preferred_store', 'transaction_preference', 'city']
+            fields = ['phone_number', 'preferred_store', 'transaction_preference', 'city', 'profile_picture']
 
     if request.method == 'POST':
-        form = EditProfileForm(request.POST, instance=user_profile)
+        form = EditProfileForm(request.POST, request.FILES, instance=user_profile)
         if form.is_valid():
             form.save()
             messages.success(request, 'Tu perfil ha sido actualizado correctamente.')

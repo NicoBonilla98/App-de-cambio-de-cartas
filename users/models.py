@@ -37,6 +37,7 @@ class CustomUser(AbstractUser):
         blank=True,
         null=True
     )
+    profile_picture = models.ImageField(upload_to='profile_pictures/', null=True, blank=True)
 
 
 class Card(models.Model):
