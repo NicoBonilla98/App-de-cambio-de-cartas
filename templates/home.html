@@ -16,6 +16,14 @@
     <a href="{% url 'register' %}">
         <button>Registrarse</button>
     </a>
+    <div class="most-common-cards">
+        <h3>Cartas más comunes en transacciones</h3>
+        <ul>
+            {% for card, count in most_common_cards %}
+                <li>{{ card }} ({{ count }} transacciones)</li>
+            {% endfor %}
+        </ul>
+    </div>
 {% else %}
     <p>¡Hola, {{ user.username }}!</p>
     <form method="get" action="{% url 'search_card' %}">

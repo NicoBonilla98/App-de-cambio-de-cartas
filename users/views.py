@@ -471,20 +471,24 @@ def reject_exchange(request, exchange_id):
     messages.success(request, 'Intercambio rechazado exitosamente.')
     return redirect('pending_transactions')
 
-@login_required
 def home(request):
-    # Obtener todas las transacciones aceptadas
-    accepted_exchanges = Exchange.objects.filter(status='accepted')
+    # Obtener todas las transacciones
+    all_exchanges = Exchange.objects.all()
 
-    # Contar las cartas más repetidas en las transacciones aceptadas
+    # Contar las cartas más repetidas en todas las transacciones
     all_cards = []
-    for exchange in accepted_exchanges:
+    for exchange in all_exchanges:
         all_cards.extend(exchange.sender_cards.split(', '))
         all_cards.extend(exchange.receiver_cards.split(', '))
 
-    most_common_cards = Counter(all_cards).most_common(5)  # Obtener las 5 cartas más repetidas
+    most_common_cards = Counter(all_cards).most_common(15)  # Obtener las 15 cartas más repetidas
 
-    return render(request, 'home.html', {'most_common_cards': most_common_cards})
+    # Crear una lista de tuplas con el nombre de la carta y el número de transacciones
+    most_common_cards_with_transactions = [(card, count) for card, count in most_common_cards]
+
+    return render(request, 'home.html', {
+        'most_common_cards': most_common_cards_with_transactions
+    })
 
 @login_required
 def upload_file(request):
