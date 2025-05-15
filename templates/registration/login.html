@@ -1,11 +1,124 @@
 {% extends "base.html" %}
 
 {% block content %}
-<h2>Iniciar sesión</h2>
-<form method="post">
-    {% csrf_token %}
-    {{ form.as_p }}
-    <button type="submit">Iniciar sesión</button>
-</form>
-<p>¿No tienes una cuenta? <a href="{% url 'register' %}">Regístrate aquí</a>.</p>
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-6 col-md-8 col-sm-12">
+            <div class="card shadow p-4 bg-white rounded">
+                <div class="card-body">
+                    <h2 class="card-title text-center mb-4">Ingresar</h2>
+                    <form method="post" id="loginForm">
+                        {% csrf_token %}
+                        <!-- Username -->
+                        <div class="mb-3">
+                            <label for="id_username" class="form-label">Nombre de usuario</label>
+                            <input type="text" name="username" maxlength="50" autofocus id="id_username"
+                                class="form-control">
+                            <div id="usernameEmpty" class="text-danger mt-1" style="display: none;">
+                                ❌ El nombre de usuario no puede estar vacío.
+                            </div>
+                        </div>
+
+                        <!-- Password -->
+                        <div class="mb-3">
+                            <label for="id_password" class="form-label">Contraseña</label>
+                            <input type="password" name="password" id="id_password"
+                                class="form-control">
+                            <ul id="passwordEmpty" class="text-danger mt-1" style="display: none;">
+                                <li>❌ La contraseña no puede estar vacía.</li>
+                            </ul>
+                        </div>
+
+                        <div class="text-center">
+                            <button type="submit" class="btn btn-primary">Registrarse</button>
+                            <p>¿No tienes una cuenta? <a href="{% url 'register' %}">Registrate aquí</a>.</p>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const form = document.getElementById('loginForm');
+        const username = document.getElementById('id_username');
+        const password = document.getElementById('id_password');
+
+        const show = (id) => document.getElementById(id).style.display = 'block';
+        const hide = (id) => document.getElementById(id).style.display = 'none';
+        const shake = (el) => {
+            el.classList.add('input-error');
+            setTimeout(() => el.classList.remove('input-error'), 1000);
+        };
+
+        function validatePasswordField() {
+            const password = password1.value.trim();
+            const usernameVal = username.value.trim();
+            const emailVal = email.value.trim();
+
+            let hasError = false;
+
+            const emptyError = document.getElementById('passwordEmpty').children[0];
+
+            if (!password) {
+                emptyError.style.display = 'list-item';
+                hasError = true;
+            } else {
+                emptyError.style.display = 'none';
+            }
+
+            const ul = document.getElementById('passwordEmpty');
+            ul.style.display = hasError ? 'block' : 'none';
+
+            if (hasError) shake(password);
+            return !hasError;
+        }
+
+        function validateField(field) {
+            const value = field.input.value.trim();
+            const emptyDiv = document.getElementById(field.emptyId);
+            const errorDiv = field.errorId ? document.getElementById(field.errorId) : null;
+
+            let isValid = true;
+
+            if (!value) {
+                show(field.emptyId);
+                if (errorDiv) hide(field.errorId);
+                shake(field.input);
+                isValid = false;
+            } else {
+                hide(field.emptyId);
+                if (errorDiv) hide(field.errorId);
+            }
+
+            return isValid;
+        }
+
+        const fields = [
+            { input: username, emptyId: 'usernameEmpty', errorId: 'usernameError', validate: val => /^[\w.-]+$/.test(val) },
+        ];
+
+        fields.forEach(field => {
+            if (field.input.id === 'id_email') {
+                field.input.addEventListener('blur', () => validateField(field));
+            } else {
+                field.input.addEventListener('input', () => validateField(field));
+            }
+        });
+
+        password.addEventListener('input', validatePasswordField);
+
+        form.addEventListener('submit', function (e) {
+            let formValid = true;
+
+            if (!validatePasswordField()) formValid = false;
+            fields.forEach(field => {
+                if (!validateField(field)) formValid = false;
+            });
+
+            if (!formValid) e.preventDefault();
+        });
+    });
+</script>
 {% endblock %}
