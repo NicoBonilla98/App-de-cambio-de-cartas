@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Vender Cartas</h1>
+<p>Selecciona las cartas que deseas vender y completa la información requerida.</p>
+<p class="disclaimer">Las cartas se comprarán por el 80% del precio marcado en SGC o se pueden comprar al 100% pero en crédito de tienda.</p>
+
+<form method="post">
+    {% csrf_token %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Nombre de la Carta</th>
+                <th>Cantidad Propia</th>
+                <th>Cantidad a Vender</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for card in owned_cards %}
+            <tr>
+                <td>{{ card.card.name }}</td>
+                <td>{{ card.quantity_owned }}</td>
+                <td>
+                    <input type="number" name="quantity_to_sell_{{ card.id }}" class="form-control" placeholder="Cantidad a vender">
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <button type="submit" class="btn btn-primary">Vender</button>
+</form>
+
+<p id="totalLabel">Total: $0.00</p>
+
+<a href="{% url 'card_list' %}"><button class="btn btn-secondary mt-3">Volver a Mis Cartas</button></a>
+
+<script>
+    function updateTotal() {
+        let total = 0;
+        {% for card in owned_cards %}
+        const quantityInput = document.querySelector('input[name="quantity_to_sell_{{ card.id }}"]');
+        if (quantityInput) {
+            const quantity = parseInt(quantityInput.value) || 0;
+            const price = {{ card.card.price }}; // Assuming price is available in the card object
+            total += quantity * price * 0.8; // 80% of the price
+        }
+        {% endfor %}
+        document.getElementById('totalLabel').innerText = `Total: $${total.toFixed(2)}`;
+    }
+
+    document.addEventListener('input', updateTotal);
+</script>
+{% endblock %}
