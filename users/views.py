@@ -188,6 +188,8 @@ def edit_user_profile(request):
             form.save()
             messages.success(request, 'Tu perfil ha sido actualizado correctamente.')
             return redirect('view_user_info', user_id=request.user.id)
+        else:
+            messages.error(request, 'Hubo un error al actualizar tu perfil. Por favor, revisa los datos ingresados.')
     else:
         form = EditProfileForm(instance=user_profile)
 
