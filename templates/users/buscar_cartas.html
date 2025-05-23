@@ -1,0 +1,21 @@
+<h1>Buscar Cartas</h1>
+<form method="get" action="{% url 'buscar_cartas' %}">
+    <input type="text" name="query" placeholder="Buscar cartas">
+    <button type="submit">Buscar</button>
+</form>
+
+{% if api_data and not api_data.error %}
+<h2>Resultados de la Búsqueda</h2>
+<ul>
+    {% for card in api_data.data %}
+    <li>
+        <strong>{{ card.name }}</strong> - {{ card.type_line }}
+        <p>{{ card.oracle_text }}</p>
+    </li>
+    {% endfor %}
+</ul>
+{% elif api_data and api_data.error %}
+<p>{{ api_data.error }}</p>
+{% else %}
+<p>No se encontraron cartas.</p>
+{% endif %}

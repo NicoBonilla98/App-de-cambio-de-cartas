@@ -4,11 +4,14 @@
 <h2>Mi Perfil</h2>
 <p><strong>Nombre de usuario:</strong> {{ user.username }}</p>
 <p><strong>Correo electrónico:</strong> {{ user.email }}</p>
-<form method="post">
+<form method="post" enctype="multipart/form-data">
     {% csrf_token %}
     {{ form.as_p }}
     <button type="submit">Guardar Cambios</button>
 </form>
+<a href="{{ user.profile.profile_picture.url }}" target="_blank">
+    <img src="{{ user.profile.profile_picture.url }}" alt="Foto de Perfil" class="img-thumbnail mt-3">
+</a>
 <a href="{% url 'edit_profile' %}"><button type="button">Editar Perfil</button></a>
 <a href="{% url 'card_list' %}">Volver a Mis Cartas</a>
 {% endblock %}

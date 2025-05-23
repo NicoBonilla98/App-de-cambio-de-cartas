@@ -5,14 +5,26 @@
 </form>
 
 {% if api_data and not api_data.error %}
-<h2>Detalles de la Carta</h2>
-<ul>
-    <li>Nombre: {{ api_data.name }}</li>
-    <li>Descripción: {{ api_data.oracle_text }}</li>
-    <li>Precio: ${{ api_data.prices.usd }}</li>
-</ul>
+    {% if api_data.object == "list" %}
+        <h2>Resultados de la Búsqueda</h2>
+        <ul>
+            {% for card in api_data.data %}
+                <li>
+                    <strong>{{ card.name }}</strong> - {{ card.type_line }}
+                    <p>{{ card.oracle_text }}</p>
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <h2>Detalles de la Carta</h2>
+        <ul>
+            <li>Nombre: {{ api_data.name }}</li>
+            <li>Descripción: {{ api_data.oracle_text }}</li>
+            <li>Precio: ${{ api_data.prices.usd }}</li>
+        </ul>
+    {% endif %}
 {% elif api_data and api_data.error %}
-<p>{{ api_data.error }}</p>
+    <p>{{ api_data.error }}</p>
 {% else %}
-<p>No se encontró ninguna carta con ese nombre.</p>
+    <p>No se encontró ninguna carta con ese nombre.</p>
 {% endif %}

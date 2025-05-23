@@ -2,6 +2,8 @@ from django.contrib import admin
 from django.urls import path, include
 from django.contrib.auth import views as auth_views
 from django.shortcuts import render
+from django.conf import settings
+from django.conf.urls.static import static
 
 def home(request):
     return render(request, 'home.html')
@@ -13,3 +15,5 @@ urlpatterns = [
     path('users/', include('users.urls')),  # Incluye las URLs de la app users
     path('', home, name='home'),  # Ruta para la pantalla de inicio
 ]
+
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

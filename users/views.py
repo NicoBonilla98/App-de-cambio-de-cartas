@@ -13,6 +13,7 @@ from django.views.decorators.csrf import csrf_exempt
 import json
 import requests
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -179,14 +180,16 @@ def edit_user_profile(request):
     class EditProfileForm(forms.ModelForm):
         class Meta:
             model = CustomUser
-            fields = ['phone_number', 'preferred_store', 'transaction_preference', 'city']
+            fields = ['phone_number', 'preferred_store', 'transaction_preference', 'city', 'profile_picture']
 
     if request.method == 'POST':
-        form = EditProfileForm(request.POST, instance=user_profile)
+        form = EditProfileForm(request.POST, request.FILES, instance=user_profile)
         if form.is_valid():
             form.save()
             messages.success(request, 'Tu perfil ha sido actualizado correctamente.')
             return redirect('view_user_info', user_id=request.user.id)
+        else:
+            messages.error(request, 'Hubo un error al actualizar tu perfil. Por favor, revisa los datos ingresados.')
     else:
         form = EditProfileForm(instance=user_profile)
 
@@ -211,66 +214,70 @@ def view_user_cards(request):
 
     # Obtener la carta deseada desde la notificación
     desired_card = None
-    if notification_id:
+    if notification_id == 'None' or not notification_id:
+        notification = None
+    else:
         try:
             notification = Notification.objects.get(id=notification_id, receiver=request.user)
             desired_card = notification.message.split("'")[1]  # Extraer la carta deseada del mensaje
         except (Notification.DoesNotExist, IndexError):
-            pass
+            notification = None
+            desired_card = None
+
+    # Obtener el ID del intercambio asociado a la notificación
+    transaction_id = None
+    if notification and notification.transaction:
+        transaction_id = notification.transaction.id
 
     return render(request, 'users/view_user_cards.html', {
         'selected_user': selected_user,
         'user_cards': user_cards,
         'searched_card': desired_card,  # Pasar la carta deseada al template
-        'show_price': True  # Indicate to the template to show prices
+        'show_price': True,  # Indicate to the template to show prices
+        'transaction_id': transaction_id  # Pasar el ID del intercambio al template
     })
 
 @login_required
 def send_trade_request(request):
     if request.method == 'POST':
-        desired_card = request.POST.get('desired_card')
+        # Obtener los datos del formulario
+        transaction_id = request.POST.get('transaction_id')
         selected_cards = request.POST.getlist('selected_cards')
-        receiver_id = request.POST.get('user_id')
+        desired_card = request.POST.get('desired_card')
 
+        # Validar que se hayan seleccionado cartas
         if not selected_cards:
-            messages.error(request, 'Seleccione una o más cartas a cambiar.')
-            return redirect(f"/users/view_user_cards/?user_id={receiver_id}&notification_id={request.GET.get('notification_id')}")
+            messages.error(request, 'Debe seleccionar al menos una carta para el intercambio.')
+            return redirect('view_user_cards')
 
-        selected_cards_str = ', '.join(selected_cards)
-        message = f"{request.user.username} ofrece '{desired_card}' por '{selected_cards_str}'."
-
-        # Enviar notificación al usuario correspondiente
-        receiver = get_object_or_404(CustomUser, id=receiver_id)
-        Notification.objects.create(
-            sender=request.user,
-            receiver=receiver,
-            message=message,
-            type='exchange'  # Tipo de notificación: intercambio
-        )
-
-        # Buscar el intercambio existente
-        exchange = Exchange.objects.filter(sender=receiver, receiver=request.user, status='pending').first()
-        if not exchange:
-            messages.error(request, 'No se encontró un intercambio pendiente para actualizar.')
-            return redirect('list_notifications')
+        # Obtener el objeto Exchange asociado al transaction_id
+        exchange = get_object_or_404(Exchange, id=transaction_id)
 
         # Actualizar los detalles del intercambio
         exchange.sender_cards = ', '.join(selected_cards)
         exchange.receiver_cards = desired_card
         exchange.save()
 
-        messages.success(request, 'Intercambio actualizado correctamente.')
+        # Crear el mensaje de notificación
+        selected_cards_str = ', '.join(selected_cards)
+        message = f"{request.user.username} ofrece '{desired_card}' por '{selected_cards_str}'."
 
-        # Marcar la notificación como resuelta
-        if 'notification_id' in request.GET:
-            notification_id = request.GET.get('notification_id')
-            notification = get_object_or_404(Notification, id=notification_id, receiver=request.user)
-            notification.type = 'resolved'
-            notification.is_read = True
-            notification.save()
+        # Crear la notificación asociada al intercambio
+        Notification.objects.create(
+            sender=exchange.receiver,  # Usuario actual
+            receiver= exchange.sender,  # Usuario que muestra sus cartas
+            message=message,
+            type='exchange',
+            transaction=exchange  # Asociar la notificación con el objeto Exchange
+        )
 
-        messages.success(request, 'Solicitud de intercambio enviada correctamente.')
+        # Mostrar mensaje de éxito
+        messages.success(request, 'Las cartas seleccionadas se han guardado correctamente en el intercambio.')
+
         return redirect('list_notifications')
+
+    # Si no es una solicitud POST, redirigir a la lista de notificaciones
+    return redirect('list_notifications')
 
 @login_required
 def send_notification(request):
@@ -297,7 +304,8 @@ def send_notification(request):
                 sender=request.user,
                 receiver=owner,
                 message=message,
-                type='action'
+                type='action',
+                transaction=exchange  # Asociar la notificación con la transacción creada
             )
             messages.info(request, f"Notificación enviada a {owner.username}: {message}")
         except Exception as e:
@@ -316,16 +324,6 @@ def accept_notification(request):
     if request.method == 'POST':
         notification_id = request.POST.get('notification_id')
         notification = get_object_or_404(Notification, id=notification_id, receiver=request.user)
-
-        # Si la notificación es de tipo exchange, también ejecuta accept_exchange
-        if notification.type == 'exchange':
-            try:
-                exchange = Exchange.objects.get(sender=notification.sender, receiver=request.user, status='pending')
-                exchange.status = 'accepted'
-                exchange.save()
-            except Exchange.DoesNotExist:
-                messages.error(request, 'No se encontró un intercambio pendiente asociado a esta notificación.')
-                return redirect('list_notifications')
 
         # Redirigir a view_user_info si la notificación es de tipo exchange y luego cambiar el estado
         if notification.type == 'exchange':
@@ -354,11 +352,19 @@ def reject_notification(request):
 
         # Enviar notificación de rechazo al emisor
         message = f"{request.user.username} no aceptó el cambio."
+
+        # Actualizar la transacción asociada a rechazada
+        transaction = get_object_or_404(Exchange, id=notification.transaction_id, status='pending')
+        transaction.status = 'rejected'
+        transaction.save()
+
+        # Crear una notificación con el ID de la transacción
         Notification.objects.create(
             sender=request.user,
             receiver=notification.sender,
             message=message,
-            type='info'  # Tipo de notificación: informativo
+            type='info',  # Tipo de notificación: informativo
+            transaction_id=notification.transaction_id  # Asociar la notificación con el ID de transacción
         )
 
         return redirect('list_notifications')
@@ -374,13 +380,19 @@ def reject_offer(request):
             notification.is_read = True
             notification.save()
 
+            # Actualizar la transacción asociada a rechazada
+            transaction = get_object_or_404(Exchange, id=notification.transaction_id, status='pending')
+            transaction.status = 'rejected'
+            transaction.save()
+
         # Enviar notificación de rechazo al remitente
         message = f"{request.user.username} ha rechazado tu oferta."
         Notification.objects.create(
             sender=request.user,
             receiver=notification.sender,
             message=message,
-            type='info'  # Tipo de notificación: informativo
+            type='info',  # Tipo de notificación: informativo
+            transaction_id=notification.transaction_id  # Asociar la notificación con el ID de transacción
         )
 
         return redirect('list_notifications')
@@ -416,14 +428,27 @@ def make_purchase_offer(request):
 
         if card_name and owner_id:
             owner = get_object_or_404(CustomUser, id=owner_id)
-            message = f"{request.user.username} está interesado en comprar: {card_name}."
+
+            # Crear un intercambio de tipo venta
+            exchange = Exchange.objects.create(
+                sender=request.user,
+                receiver=owner,
+                sender_cards='',  # No hay cartas ofrecidas en este caso
+                receiver_cards=card_name,
+                status='pending',
+                exchange_type='sale'  # Tipo de intercambio: venta
+            )
+
+            # Crear una notificación asociada al intercambio
             Notification.objects.create(
                 sender=request.user,
                 receiver=owner,
-                message=message,
-                type='compra'  # Tipo de notificación: compra
+                message=f"{request.user.username} está interesado en comprar: {card_name}.",
+                type='action',
+                transaction=exchange  # Asociar la notificación con el intercambio creado
             )
-            messages.success(request, f"Notificación enviada a {owner.username}: {message}")
+
+            messages.success(request, f"Notificación enviada a {owner.username}: {exchange.receiver_cards}")
 
         return redirect('card_list')
 
@@ -448,20 +473,24 @@ def reject_exchange(request, exchange_id):
     messages.success(request, 'Intercambio rechazado exitosamente.')
     return redirect('pending_transactions')
 
-@login_required
 def home(request):
-    # Obtener todas las transacciones aceptadas
-    accepted_exchanges = Exchange.objects.filter(status='accepted')
+    # Obtener todas las transacciones
+    all_exchanges = Exchange.objects.all()
 
-    # Contar las cartas más repetidas en las transacciones aceptadas
+    # Contar las cartas más repetidas en todas las transacciones
     all_cards = []
-    for exchange in accepted_exchanges:
+    for exchange in all_exchanges:
         all_cards.extend(exchange.sender_cards.split(', '))
         all_cards.extend(exchange.receiver_cards.split(', '))
 
-    most_common_cards = Counter(all_cards).most_common(5)  # Obtener las 5 cartas más repetidas
+    most_common_cards = Counter(all_cards).most_common(15)  # Obtener las 15 cartas más repetidas
 
-    return render(request, 'home.html', {'most_common_cards': most_common_cards})
+    # Crear una lista de tuplas con el nombre de la carta y el número de transacciones
+    most_common_cards_with_transactions = [(card, count) for card, count in most_common_cards]
+
+    return render(request, 'home.html', {
+        'most_common_cards': most_common_cards_with_transactions
+    })
 
 @login_required
 def upload_file(request):
@@ -566,14 +595,16 @@ def consultar_carta(request):
     api_data = None
 
     if card_name:
-        logger.debug(f"Received card_name: {card_name}")
-        # Consultar la API de Scryfall
+        time.sleep(0.05)  # Add a delay of 50 milliseconds to respect the API rate limit
         response = requests.get(f"https://api.scryfall.com/cards/named?fuzzy={card_name}")
-        logger.debug(f"API Response Status: {response.status_code}")
         if response.status_code == 200:
             api_data = response.json()
-            logger.debug(f"API Response Data: {api_data}")
         else:
-            api_data = {'error': 'No se encontró ninguna carta con ese nombre en la API de Scryfall.'}
+            # If no card is found, perform a broader search
+            response = requests.get(f"https://api.scryfall.com/cards/search?q={card_name}")
+            if response.status_code == 200:
+                api_data = response.json()
+            else:
+                api_data = {'error': 'No se encontraron cartas con ese nombre en la API de Scryfall.'}
 
     return render(request, 'users/consultar_carta.html', {'api_data': api_data})
