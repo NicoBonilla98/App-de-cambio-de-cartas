@@ -1,0 +1,357 @@
+{% extends "base.html" %}
+
+{% block title %}Registrar Carta{% endblock %}
+
+{% block content %}
+<section class="listing-builder">
+    <div class="listing-builder__sidebar">
+        <p class="eyebrow">New Listing</p>
+        <h1>Forge New Archive Record</h1>
+        <p class="listing-builder__intro">
+            Busca una impresion exacta en Scryfall, revisa la expansion y publica tu carta con un precio base confiable.
+        </p>
+
+        <div class="listing-steps">
+            <div class="listing-step listing-step--active">1. Card Details</div>
+            <div class="listing-step">2. Condition</div>
+            <div class="listing-step">3. Pricing</div>
+            <div class="listing-step">4. Review</div>
+        </div>
+    </div>
+
+    <form method="post" class="listing-builder__form" id="listingForm">
+        {% csrf_token %}
+        <div class="builder-panel">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">Card Selection</p>
+                    <h2>Select card specimen</h2>
+                </div>
+            </div>
+
+            <div class="search-shell">
+                <label class="listing-label" for="scryfall-search">Search card name</label>
+                <div class="search-shell__controls">
+                    <div class="search-shell__input">
+                        <i class="bi bi-search"></i>
+                        <input id="scryfall-search" type="text" autocomplete="off" placeholder="Start typing a card name">
+                    </div>
+                </div>
+                <div class="search-results" id="scryfall-results" hidden></div>
+                <p class="form-note">Debounced search with local throttling to stay well under the Scryfall limit.</p>
+            </div>
+
+            <div class="builder-grid">
+                <div class="builder-field">
+                    <label class="listing-label" for="card_name">Card name</label>
+                    <input id="card_name" name="card_name" type="text" readonly required>
+                </div>
+                <div class="builder-field">
+                    <label class="listing-label" for="set_name">Expansion</label>
+                    <input id="set_name" name="set_name" type="text" readonly required>
+                </div>
+                <div class="builder-field">
+                    <label class="listing-label" for="set_code">Set code</label>
+                    <input id="set_code" name="set_code" type="text" readonly>
+                </div>
+                <div class="builder-field">
+                    <label class="listing-label" for="collector_number">Collector number</label>
+                    <input id="collector_number" name="collector_number" type="text" readonly>
+                </div>
+                <div class="builder-field">
+                    <label class="listing-label" for="card_type">Collection bucket</label>
+                    <select id="card_type" name="card_type">
+                        <option value="owned">En posesion</option>
+                        <option value="desired">Deseada</option>
+                    </select>
+                </div>
+                <div class="builder-field">
+                    <label class="listing-label" for="quantity">Quantity</label>
+                    <input id="quantity" name="quantity" type="number" min="1" value="1">
+                </div>
+            </div>
+        </div>
+
+        <div class="builder-panel">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">Trade Intent</p>
+                    <h2>Listing intent</h2>
+                </div>
+            </div>
+
+            <div class="intent-switch">
+                <label class="intent-option">
+                    <input type="radio" name="listing_intent" value="sell" checked>
+                    <span>Sell</span>
+                </label>
+                <label class="intent-option">
+                    <input type="radio" name="listing_intent" value="trade">
+                    <span>Trade</span>
+                </label>
+                <label class="intent-option">
+                    <input type="radio" name="listing_intent" value="sell_trade">
+                    <span>Sell/Trade</span>
+                </label>
+            </div>
+
+            <div class="condition-grid">
+                <label class="condition-chip">
+                    <input type="radio" name="condition" value="near_mint" checked>
+                    <span>Near Mint</span>
+                </label>
+                <label class="condition-chip">
+                    <input type="radio" name="condition" value="lightly_played">
+                    <span>Lightly Played</span>
+                </label>
+                <label class="condition-chip">
+                    <input type="radio" name="condition" value="moderately_played">
+                    <span>Moderately Played</span>
+                </label>
+                <label class="condition-chip">
+                    <input type="radio" name="condition" value="heavily_played">
+                    <span>Heavily Played</span>
+                </label>
+                <label class="condition-chip">
+                    <input type="radio" name="condition" value="damaged">
+                    <span>Damaged</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="builder-panel">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">Pricing Benchmarks</p>
+                    <h2>Reference and custom price</h2>
+                </div>
+            </div>
+
+            <div class="benchmark-grid">
+                <article class="benchmark-card">
+                    <span>USD Market</span>
+                    <strong id="usd-price-display">--</strong>
+                </article>
+                <article class="benchmark-card">
+                    <span>USD Foil</span>
+                    <strong id="usd-foil-price-display">--</strong>
+                </article>
+                <article class="benchmark-card">
+                    <span>EUR</span>
+                    <strong id="eur-price-display">--</strong>
+                </article>
+            </div>
+
+            <div class="builder-grid">
+                <div class="builder-field">
+                    <label class="listing-label" for="asking_price">Custom price (USD)</label>
+                    <input id="asking_price" name="asking_price" type="number" min="0" step="0.01" placeholder="0.00">
+                </div>
+                <div class="builder-field">
+                    <label class="listing-label" for="description">Card notes</label>
+                    <textarea id="description" name="description" rows="3" placeholder="Detalles del estado, idioma o notas adicionales."></textarea>
+                </div>
+            </div>
+        </div>
+
+        <input type="hidden" id="scryfall_id" name="scryfall_id">
+        <input type="hidden" id="image_url" name="image_url">
+        <input type="hidden" id="rarity" name="rarity">
+        <input type="hidden" id="usd_price" name="usd_price">
+        <input type="hidden" id="usd_foil_price" name="usd_foil_price">
+        <input type="hidden" id="eur_price" name="eur_price">
+
+        <div class="builder-actions">
+            <a href="{% url 'card_list' %}" class="button button--ghost">Cancel</a>
+            <button type="submit" class="button button--primary">Forge Listing</button>
+        </div>
+    </form>
+
+    <aside class="listing-preview">
+        <p class="eyebrow">Listing Preview</p>
+        <div class="listing-preview__card">
+            <div class="listing-preview__art" id="preview-art">
+                <div class="listing-preview__placeholder">No card selected</div>
+                <img id="preview-image" alt="" hidden>
+            </div>
+            <div class="listing-preview__body">
+                <h3 id="preview-name">Choose a card</h3>
+                <p id="preview-meta">Set and rarity will appear here.</p>
+                <div class="preview-tags">
+                    <span id="preview-rarity" class="preview-tag">Rarity</span>
+                    <span id="preview-condition" class="preview-tag">Near Mint</span>
+                </div>
+                <div class="preview-price">
+                    <span>Asking price</span>
+                    <strong id="preview-asking-price">--</strong>
+                </div>
+            </div>
+        </div>
+    </aside>
+</section>
+
+<script>
+(() => {
+    const searchInput = document.getElementById('scryfall-search');
+    const resultsBox = document.getElementById('scryfall-results');
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    const formFields = {
+        cardName: document.getElementById('card_name'),
+        setName: document.getElementById('set_name'),
+        setCode: document.getElementById('set_code'),
+        collectorNumber: document.getElementById('collector_number'),
+        scryfallId: document.getElementById('scryfall_id'),
+        imageUrl: document.getElementById('image_url'),
+        rarity: document.getElementById('rarity'),
+        usdPrice: document.getElementById('usd_price'),
+        usdFoilPrice: document.getElementById('usd_foil_price'),
+        eurPrice: document.getElementById('eur_price'),
+        askingPrice: document.getElementById('asking_price'),
+        description: document.getElementById('description'),
+    };
+
+    const preview = {
+        image: document.getElementById('preview-image'),
+        art: document.getElementById('preview-art'),
+        placeholder: document.querySelector('.listing-preview__placeholder'),
+        name: document.getElementById('preview-name'),
+        meta: document.getElementById('preview-meta'),
+        rarity: document.getElementById('preview-rarity'),
+        condition: document.getElementById('preview-condition'),
+        askingPrice: document.getElementById('preview-asking-price'),
+        usd: document.getElementById('usd-price-display'),
+        usdFoil: document.getElementById('usd-foil-price-display'),
+        eur: document.getElementById('eur-price-display'),
+    };
+
+    let activeController = null;
+    let debounceTimer = null;
+
+    function formatPrice(value, currency = 'USD') {
+        if (!value) {
+            return '--';
+        }
+        const numeric = Number(value);
+        if (Number.isNaN(numeric)) {
+            return '--';
+        }
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency,
+            minimumFractionDigits: 2,
+        }).format(numeric);
+    }
+
+    function setPreview(card) {
+        formFields.cardName.value = card.name || '';
+        formFields.setName.value = card.set_name || '';
+        formFields.setCode.value = card.set_code || '';
+        formFields.collectorNumber.value = card.collector_number || '';
+        formFields.scryfallId.value = card.scryfall_id || '';
+        formFields.imageUrl.value = card.image_url || '';
+        formFields.rarity.value = card.rarity || '';
+        formFields.usdPrice.value = card.usd_price || '';
+        formFields.usdFoilPrice.value = card.usd_foil_price || '';
+        formFields.eurPrice.value = card.eur_price || '';
+        formFields.description.value = card.description || '';
+
+        preview.name.textContent = card.name || 'Choose a card';
+        preview.meta.textContent = [card.set_name, card.type_line, card.collector_number].filter(Boolean).join(' • ') || 'Set and rarity will appear here.';
+        preview.rarity.textContent = card.rarity || 'Rarity';
+        preview.usd.textContent = formatPrice(card.usd_price, 'USD');
+        preview.usdFoil.textContent = formatPrice(card.usd_foil_price, 'USD');
+        preview.eur.textContent = formatPrice(card.eur_price, 'EUR');
+        if (!formFields.askingPrice.value && card.usd_price) {
+            formFields.askingPrice.value = card.usd_price;
+        }
+        updateAskingPricePreview();
+
+        if (card.image_url) {
+            preview.image.src = card.image_url;
+            preview.image.hidden = false;
+            preview.placeholder.hidden = true;
+        }
+    }
+
+    function renderResults(items, errorMessage = '') {
+        resultsBox.innerHTML = '';
+        if (errorMessage) {
+            resultsBox.hidden = false;
+            resultsBox.innerHTML = `<div class="search-results__empty">${errorMessage}</div>`;
+            return;
+        }
+        if (!items.length) {
+            resultsBox.hidden = false;
+            resultsBox.innerHTML = '<div class="search-results__empty">No matching printings found.</div>';
+            return;
+        }
+
+        const fragment = document.createDocumentFragment();
+        items.forEach((card) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'search-result';
+            button.innerHTML = `
+                <div>
+                    <strong>${card.name}</strong>
+                    <span>${card.set_name} • ${card.set_code} #${card.collector_number || '--'}</span>
+                </div>
+                <em>${formatPrice(card.usd_price, 'USD')}</em>
+            `;
+            button.addEventListener('click', () => {
+                setPreview(card);
+                resultsBox.hidden = true;
+            });
+            fragment.appendChild(button);
+        });
+        resultsBox.appendChild(fragment);
+        resultsBox.hidden = false;
+    }
+
+    async function searchCards(query) {
+        if (activeController) {
+            activeController.abort();
+        }
+        activeController = new AbortController();
+
+        try {
+            const response = await fetch(`{% url 'scryfall_card_search' %}?q=${encodeURIComponent(query)}`, {
+                method: 'GET',
+                headers: {
+                    'X-CSRFToken': csrfToken,
+                },
+                signal: activeController.signal,
+            });
+            const payload = await response.json();
+            renderResults(payload.results || [], payload.error || '');
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                renderResults([], 'Search could not be completed right now.');
+            }
+        }
+    }
+
+    function updateAskingPricePreview() {
+        preview.askingPrice.textContent = formatPrice(formFields.askingPrice.value, 'USD');
+    }
+
+    searchInput.addEventListener('input', () => {
+        const query = searchInput.value.trim();
+        clearTimeout(debounceTimer);
+        if (query.length < 3) {
+            resultsBox.hidden = true;
+            return;
+        }
+        debounceTimer = setTimeout(() => searchCards(query), 450);
+    });
+
+    formFields.askingPrice.addEventListener('input', updateAskingPricePreview);
+    document.querySelectorAll('input[name="condition"]').forEach((radio) => {
+        radio.addEventListener('change', () => {
+            preview.condition.textContent = radio.nextElementSibling.textContent;
+        });
+    });
+})();
+</script>
+{% endblock %}
