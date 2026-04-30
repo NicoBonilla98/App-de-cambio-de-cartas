@@ -1,5 +1,7 @@
 from collections import Counter
+import csv
 from decimal import Decimal, InvalidOperation
+import io
 import json
 import time
 from urllib.error import HTTPError, URLError
@@ -24,6 +26,7 @@ SCRYFALL_API_BASE = 'https://api.scryfall.com'
 SCRYFALL_SEARCH_LIMIT = 8
 SCRYFALL_MIN_INTERVAL_SECONDS = 0.35
 SCRYFALL_TIMEOUT_SECONDS = 8
+SCRYFALL_BULK_LOOKUP_INTERVAL_SECONDS = 0.26
 SCRYFALL_HEADERS = {
     'User-Agent': 'MakiExchange/1.0 (local development contact: desktop-app)',
     'Accept': 'application/json;q=0.9,*/*;q=0.8',
@@ -57,6 +60,13 @@ def _to_decimal(value):
         return None
 
 
+def _to_int(value, default=1):
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError, AttributeError):
+        return default
+
+
 def _scryfall_request(path, params):
     query_string = urlencode(params)
     request = Request(f"{SCRYFALL_API_BASE}{path}?{query_string}", headers=SCRYFALL_HEADERS)
@@ -84,6 +94,239 @@ def _normalize_scryfall_card(card_data):
         'description': card_data.get('oracle_text') or '',
         'type_line': card_data.get('type_line') or '',
     }
+
+
+def _upsert_card_from_payload(card_payload, asking_price=None):
+    scryfall_id = (card_payload.get('scryfall_id') or '').strip()
+    card_name = (card_payload.get('name') or '').strip()
+    set_name = (card_payload.get('set_name') or '').strip()
+    set_code = (card_payload.get('set_code') or '').strip().upper()
+    collector_number = (card_payload.get('collector_number') or '').strip()
+    image_url = (card_payload.get('image_url') or '').strip()
+    description = (card_payload.get('description') or '').strip()
+    rarity = (card_payload.get('rarity') or '').strip()
+    usd_price = _to_decimal(card_payload.get('usd_price'))
+    usd_foil_price = _to_decimal(card_payload.get('usd_foil_price'))
+    eur_price = _to_decimal(card_payload.get('eur_price'))
+    base_price = usd_price or _to_decimal(asking_price) or Decimal('0.00')
+
+    if scryfall_id:
+        card, _ = Card.objects.get_or_create(
+            scryfall_id=scryfall_id,
+            defaults={
+                'name': card_name,
+                'set_name': set_name,
+                'set_code': set_code,
+                'collector_number': collector_number,
+                'image_url': image_url,
+                'description': description,
+                'rarity': rarity,
+                'price': base_price,
+                'usd_price': usd_price,
+                'usd_foil_price': usd_foil_price,
+                'eur_price': eur_price,
+            },
+        )
+        updates = []
+        for field, value in {
+            'name': card_name,
+            'set_name': set_name,
+            'set_code': set_code,
+            'collector_number': collector_number,
+            'image_url': image_url,
+            'description': description,
+            'rarity': rarity,
+            'price': base_price or card.price,
+            'usd_price': usd_price,
+            'usd_foil_price': usd_foil_price,
+            'eur_price': eur_price,
+        }.items():
+            if getattr(card, field) != value and value not in (None, ''):
+                setattr(card, field, value)
+                updates.append(field)
+        if updates:
+            card.save(update_fields=updates)
+        return card
+
+    card, _ = Card.objects.get_or_create(
+        name=card_name,
+        set_code=set_code,
+        defaults={
+            'set_name': set_name,
+            'collector_number': collector_number,
+            'image_url': image_url,
+            'description': description,
+            'rarity': rarity,
+            'price': base_price,
+            'usd_price': usd_price,
+            'usd_foil_price': usd_foil_price,
+            'eur_price': eur_price,
+        },
+    )
+    return card
+
+
+def _normalize_csv_header(value):
+    return ''.join(ch.lower() for ch in (value or '') if ch.isalnum())
+
+
+def _normalize_set_text(value):
+    tokens = []
+    for token in ''.join(ch.lower() if ch.isalnum() else ' ' for ch in (value or '')).split():
+        if token not in {'edition', 'the'}:
+            tokens.append(token)
+    return ' '.join(tokens)
+
+
+def _is_header_row(row):
+    normalized = [_normalize_csv_header(cell) for cell in row]
+    header_tokens = {'count', 'qty', 'quantity', 'name', 'cardname', 'set', 'setname', 'edition', 'expansion'}
+    return any(cell in header_tokens for cell in normalized)
+
+
+def _extract_csv_field(row_dict, aliases):
+    for key, value in row_dict.items():
+        if _normalize_csv_header(key) in aliases:
+            return (value or '').strip()
+    return ''
+
+
+def _parse_moxfield_csv(uploaded_file):
+    raw_bytes = uploaded_file.read()
+    decoded = raw_bytes.decode('utf-8-sig', errors='replace')
+    reader = csv.reader(io.StringIO(decoded))
+    rows = list(reader)
+    if not rows:
+        return []
+
+    data_rows = rows[1:] if _is_header_row(rows[0]) else rows
+    parsed_rows = []
+    for index, row in enumerate(data_rows, start=1):
+        if not row or not any(cell.strip() for cell in row):
+            continue
+        padded = row + [''] * max(0, 6 - len(row))
+        row_dict = {
+            'col0': padded[0],
+            'col1': padded[1],
+            'col2': padded[2],
+            'col3': padded[3],
+            'col4': padded[4],
+            'col5': padded[5],
+        }
+        quantity = padded[0].strip()
+        name = padded[1].strip()
+        set_name = padded[2].strip()
+
+        if _is_header_row(rows[0]):
+            header = rows[0]
+            row_dict = {header[i]: padded[i] for i in range(min(len(header), len(padded)))}
+            quantity = _extract_csv_field(row_dict, {'count', 'qty', 'quantity', 'collected'})
+            name = _extract_csv_field(row_dict, {'name', 'cardname', 'card'})
+            set_name = _extract_csv_field(row_dict, {'edition', 'set', 'setname', 'expansion'})
+
+        parsed_rows.append({
+            'row_number': index,
+            'quantity': _to_int(quantity, default=1),
+            'card_name': name,
+            'set_name': set_name,
+        })
+    return parsed_rows
+
+
+def _bulk_lookup_scryfall_cards(rows):
+    enriched_rows = []
+    errors = []
+
+    for row in rows:
+        name = (row.get('card_name') or '').strip()
+        set_name = (row.get('set_name') or '').strip()
+        if not name:
+            errors.append(f"Fila {row['row_number']}: no tiene nombre de carta.")
+            continue
+
+        cache_key = f"scryfallbulk-{_normalize_csv_header(name)}-{_normalize_csv_header(set_name)}"
+        cached_card = cache.get(cache_key)
+        if cached_card is None:
+            try:
+                payload = _scryfall_request(
+                    '/cards/search',
+                    {
+                        'q': f'!"{name}"',
+                        'unique': 'prints',
+                        'order': 'released',
+                        'dir': 'desc',
+                    },
+                )
+                matches = [_normalize_scryfall_card(card) for card in payload.get('data', [])[:24]]
+                normalized_expected_set = _normalize_set_text(set_name)
+                exact_match = next(
+                    (
+                        card for card in matches
+                        if card.get('set_name', '').strip().lower() == set_name.lower()
+                        or card.get('set_code', '').strip().lower() == set_name.lower()
+                        or (
+                            normalized_expected_set
+                            and (
+                                _normalize_set_text(card.get('set_name', '')) == normalized_expected_set
+                                or normalized_expected_set in _normalize_set_text(card.get('set_name', ''))
+                                or _normalize_set_text(card.get('set_name', '')) in normalized_expected_set
+                            )
+                        )
+                    ),
+                    None,
+                )
+                cached_card = exact_match or (matches[0] if matches else None)
+                cache.set(cache_key, cached_card, timeout=60 * 60)
+            except HTTPError as exc:
+                errors.append(f"Fila {row['row_number']}: Scryfall devolvio {exc.code} para {name}.")
+                cached_card = None
+            except (URLError, TimeoutError, ValueError):
+                errors.append(f"Fila {row['row_number']}: no se pudo consultar Scryfall para {name}.")
+                cached_card = None
+            time.sleep(SCRYFALL_BULK_LOOKUP_INTERVAL_SECONDS)
+
+        enriched_row = {
+            'row_number': row['row_number'],
+            'quantity': row['quantity'],
+            'card_name': name,
+            'csv_set_name': set_name,
+            'condition': 'near_mint',
+            'listing_intent': 'sell',
+            'asking_price': '',
+            'match_status': 'matched' if cached_card else 'missing',
+        }
+        if cached_card:
+            enriched_row.update({
+                'scryfall_id': cached_card.get('scryfall_id', ''),
+                'set_name': cached_card.get('set_name', '') or set_name,
+                'set_code': cached_card.get('set_code', ''),
+                'collector_number': cached_card.get('collector_number', ''),
+                'rarity': cached_card.get('rarity', ''),
+                'image_url': cached_card.get('image_url', ''),
+                'usd_price': cached_card.get('usd_price') or '',
+                'usd_foil_price': cached_card.get('usd_foil_price') or '',
+                'eur_price': cached_card.get('eur_price') or '',
+                'description': cached_card.get('description', ''),
+                'type_line': cached_card.get('type_line', ''),
+                'asking_price': cached_card.get('usd_price') or '',
+            })
+        else:
+            enriched_row.update({
+                'scryfall_id': '',
+                'set_name': set_name,
+                'set_code': '',
+                'collector_number': '',
+                'rarity': '',
+                'image_url': '',
+                'usd_price': '',
+                'usd_foil_price': '',
+                'eur_price': '',
+                'description': '',
+                'type_line': '',
+            })
+        enriched_rows.append(enriched_row)
+
+    return enriched_rows, errors
 
 @login_required
 def card_list(request):
@@ -159,25 +402,9 @@ def register_cards(request):
             messages.error(request, 'Selecciona una carta y su expansion antes de guardar.')
             return redirect('register_cards')
 
-        if scryfall_id:
-            card, _ = Card.objects.get_or_create(
-                scryfall_id=scryfall_id,
-                defaults={
-                    'name': card_name,
-                    'set_name': set_name,
-                    'set_code': set_code,
-                    'collector_number': collector_number,
-                    'image_url': image_url,
-                    'description': description,
-                    'rarity': rarity,
-                    'price': usd_price or asking_price or Decimal('0.00'),
-                    'usd_price': usd_price,
-                    'usd_foil_price': usd_foil_price,
-                    'eur_price': eur_price,
-                },
-            )
-            updates = []
-            for field, value in {
+        card = _upsert_card_from_payload(
+            {
+                'scryfall_id': scryfall_id,
                 'name': card_name,
                 'set_name': set_name,
                 'set_code': set_code,
@@ -185,32 +412,12 @@ def register_cards(request):
                 'image_url': image_url,
                 'description': description,
                 'rarity': rarity,
-                'price': usd_price or asking_price or card.price,
                 'usd_price': usd_price,
                 'usd_foil_price': usd_foil_price,
                 'eur_price': eur_price,
-            }.items():
-                if getattr(card, field) != value and value not in (None, ''):
-                    setattr(card, field, value)
-                    updates.append(field)
-            if updates:
-                card.save(update_fields=updates)
-        else:
-            card, _ = Card.objects.get_or_create(
-                name=card_name,
-                set_code=set_code,
-                defaults={
-                    'set_name': set_name,
-                    'collector_number': collector_number,
-                    'image_url': image_url,
-                    'description': description,
-                    'rarity': rarity,
-                    'price': usd_price or asking_price or Decimal('0.00'),
-                    'usd_price': usd_price,
-                    'usd_foil_price': usd_foil_price,
-                    'eur_price': eur_price,
-                },
-            )
+            },
+            asking_price=asking_price,
+        )
 
         is_owned = card_type == 'owned'
         UserCard.objects.create(
@@ -635,33 +842,64 @@ def home(request):
 
 @login_required
 def upload_file(request):
+    context = {
+        'form': UploadFileForm(),
+        'bulk_rows': [],
+        'parse_errors': [],
+        'matched_count': 0,
+        'missing_count': 0,
+    }
+
     if request.method == 'POST':
+        if request.POST.get('action') == 'publish':
+            try:
+                bulk_rows = json.loads(request.POST.get('bulk_payload', '[]'))
+            except json.JSONDecodeError:
+                messages.error(request, 'No se pudo leer el lote enviado.')
+                return redirect('upload_file')
+
+            created_count = 0
+            for row in bulk_rows:
+                if row.get('match_status') != 'matched':
+                    continue
+
+                card = _upsert_card_from_payload(row, asking_price=row.get('asking_price'))
+                quantity = _to_int(row.get('quantity'), default=1)
+                card_type = row.get('card_type', 'owned')
+                is_owned = card_type == 'owned'
+                UserCard.objects.create(
+                    user=request.user,
+                    card=card,
+                    is_owned=is_owned,
+                    quantity_owned=quantity if is_owned else 0,
+                    quantity_required=0 if is_owned else quantity,
+                    listing_intent=row.get('listing_intent', 'sell'),
+                    condition=row.get('condition', 'near_mint'),
+                    asking_price=_to_decimal(row.get('asking_price')),
+                )
+                created_count += 1
+
+            messages.success(request, f'Se publicaron {created_count} cartas desde el lote.')
+            return redirect('card_list')
+
         form = UploadFileForm(request.POST, request.FILES)
+        context['form'] = form
         if form.is_valid():
             uploaded_file = request.FILES['file']
-            extracted_data = []
-            for line in uploaded_file:
-                line_content = line.decode('utf-8').strip()
-                try:
-                    cantidad, resto = line_content.split(' ', 1)
-                    nombre_carta = resto[:resto.index('(')].strip()
-                    edicion = resto[resto.index('(') + 1:resto.index(')')].strip()
-                    numero_id_carta = resto[resto.index(')') + 1:].strip()
+            parsed_rows = _parse_moxfield_csv(uploaded_file)
+            bulk_rows, parse_errors = _bulk_lookup_scryfall_cards(parsed_rows)
+            context.update({
+                'bulk_rows': bulk_rows,
+                'parse_errors': parse_errors,
+                'matched_count': len([row for row in bulk_rows if row.get('match_status') == 'matched']),
+                'missing_count': len([row for row in bulk_rows if row.get('match_status') != 'matched']),
+            })
+            if bulk_rows:
+                messages.success(request, 'CSV importado. Revisa el lote antes de publicar.')
+            else:
+                messages.error(request, 'No se encontraron filas validas en el CSV.')
 
-                    extracted_data.append({
-                        'cantidad': cantidad,
-                        'nombre_carta': nombre_carta,
-                        'edicion': edicion,
-                        'numero_id_carta': numero_id_carta
-                    })
-                except Exception as e:
-                    messages.error(request, f"Error al procesar la línea: {line_content}. Detalles: {str(e)}")
-                    continue
-            messages.success(request, 'Archivo procesado correctamente.')
-            return render(request, 'users/upload_file.html', {'form': form, 'extracted_data': extracted_data})
-    else:
-        form = UploadFileForm()
-    return render(request, 'users/upload_file.html', {'form': form})
+    return render(request, 'users/upload_file.html', context)
 
 @login_required
 def import_cards(request):
@@ -671,7 +909,7 @@ def import_cards(request):
             for data in extracted_data:
                 UserCard.objects.create(
                     user=request.user,
-                    card=Card.objects.get_or_create(name=data['nombre_carta'])[0],
+                    card=Card.objects.get_or_create(name=data['nombre_carta'], set_code='')[0],
                     quantity_owned=int(data['cantidad']),
                     is_owned=True
                 )
@@ -688,7 +926,7 @@ def add_to_owned_cards(request):
             for card in data:
                 UserCard.objects.create(
                     user=request.user,
-                    card=Card.objects.get_or_create(name=card['nombre_carta'])[0],
+                    card=Card.objects.get_or_create(name=card['nombre_carta'], set_code='')[0],
                     quantity_owned=int(card['cantidad']),
                     is_owned=True
                 )
@@ -707,7 +945,7 @@ def create_user_cards_from_txt(request):
 
             data = json.loads(extracted_data)
             for card_data in data:
-                card, created = Card.objects.get_or_create(name=card_data['nombre_carta'])
+                card, created = Card.objects.get_or_create(name=card_data['nombre_carta'], set_code='')
                 UserCard.objects.create(
                     user=request.user,
                     card=card,

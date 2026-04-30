@@ -49,5 +49,8 @@
     <button type="submit">Buscar</button>
 </form>
 
-<a href="{% url 'register_cards' %}" class="btn btn-primary">Registrar Nueva Carta</a>
+<div class="builder-actions">
+    <a href="{% url 'register_cards' %}" class="button button--primary">Registrar Nueva Carta</a>
+    <a href="{% url 'upload_file' %}" class="button button--ghost">Bulk Import CSV</a>
+</div>
 {% endblock %}

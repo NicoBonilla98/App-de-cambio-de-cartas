@@ -1,57 +1,194 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
+
+{% block title %}Bulk Forge{% endblock %}
 
 {% block content %}
-<h1>Subir Archivo de Cartas</h1>
+<section class="bulk-layout">
+    <aside class="bulk-sidebar">
+        <p class="eyebrow">Archivist Module</p>
+        <h1>Bulk Listing</h1>
+        <p class="bulk-sidebar__copy">
+            Importa un CSV tipo Moxfield, valida expansion y precio con Scryfall, ajusta el lote y publícalo de una vez.
+        </p>
 
-<form method="post" enctype="multipart/form-data">
-    {% csrf_token %}
-    {{ form.as_p }}
-    <button type="submit" class="btn btn-primary">Subir Archivo</button>
-</form>
+        <div class="listing-steps">
+            <div class="listing-step listing-step--active">1. Import CSV</div>
+            <div class="listing-step">2. Validate</div>
+            <div class="listing-step">3. Adjust pricing</div>
+            <div class="listing-step">4. Publish batch</div>
+        </div>
+    </aside>
 
-{% if extracted_data %}
-<h2>Datos Extraídos</h2>
-<table class="table">
-    <thead>
-        <tr>
-            <th>Cantidad</th>
-            <th>Nombre de la Carta</th>
-            <th>Edición</th>
-            <th>ID de la Carta</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for data in extracted_data %}
-        <tr>
-            <td>{{ data.cantidad }}</td>
-            <td>{{ data.nombre_carta }}</td>
-            <td>{{ data.edicion }}</td>
-            <td>{{ data.numero_id_carta }}</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+    <div class="bulk-main">
+        <section class="builder-panel">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">CSV Intake</p>
+                    <h2>Feed the archive</h2>
+                </div>
+            </div>
+
+            <form method="post" enctype="multipart/form-data" class="bulk-import-form">
+                {% csrf_token %}
+                <div class="bulk-import-actions">
+                    <label class="button button--primary bulk-file-button">
+                        <input type="file" name="file" accept=".csv,text/csv" required hidden>
+                        <i class="bi bi-upload"></i>
+                        Import CSV
+                    </label>
+                    <span class="form-note">Espera columnas tipo cantidad, nombre y expansión. Si hay header, lo ignoramos.</span>
+                </div>
+                <button type="submit" class="button button--ghost">Process Batch</button>
+            </form>
+
+            {% if parse_errors %}
+            <div class="bulk-errors">
+                {% for error in parse_errors %}
+                <div class="message-chip">{{ error }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </section>
+
+        {% if bulk_rows %}
+        <form method="post" id="bulkPublishForm" class="bulk-publish-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="publish">
+            <input type="hidden" name="bulk_payload" id="bulk-payload">
+
+            <section class="builder-panel">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">Validated Batch</p>
+                        <h2>Review each row before publishing</h2>
+                    </div>
+                </div>
+
+                <div class="bulk-table-wrap">
+                    <table class="bulk-table" id="bulk-table">
+                        <thead>
+                            <tr>
+                                <th>Card</th>
+                                <th>Set</th>
+                                <th>Condition</th>
+                                <th>Intent</th>
+                                <th>Quantity</th>
+                                <th>Price</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in bulk_rows %}
+                            <tr class="bulk-row {% if row.match_status != 'matched' %}bulk-row--missing{% endif %}"
+                                data-row='{{ row|escapejs }}'>
+                                <td>
+                                    <div class="bulk-card-cell">
+                                        {% if row.image_url %}
+                                        <img src="{{ row.image_url }}" alt="{{ row.card_name }}">
+                                        {% else %}
+                                        <div class="bulk-card-cell__placeholder">{{ row.card_name|slice:":1" }}</div>
+                                        {% endif %}
+                                        <div>
+                                            <strong>{{ row.card_name }}</strong>
+                                            <span>{{ row.rarity|default:"No rarity" }}</span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <strong>{{ row.set_name|default:row.csv_set_name }}</strong>
+                                    <span>{{ row.set_code }}</span>
+                                </td>
+                                <td>
+                                    <select class="bulk-condition">
+                                        <option value="near_mint" {% if row.condition == 'near_mint' %}selected{% endif %}>Near Mint</option>
+                                        <option value="lightly_played" {% if row.condition == 'lightly_played' %}selected{% endif %}>Lightly Played</option>
+                                        <option value="moderately_played" {% if row.condition == 'moderately_played' %}selected{% endif %}>Moderately Played</option>
+                                        <option value="heavily_played" {% if row.condition == 'heavily_played' %}selected{% endif %}>Heavily Played</option>
+                                        <option value="damaged" {% if row.condition == 'damaged' %}selected{% endif %}>Damaged</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <select class="bulk-intent">
+                                        <option value="sell" {% if row.listing_intent == 'sell' %}selected{% endif %}>Sell</option>
+                                        <option value="trade" {% if row.listing_intent == 'trade' %}selected{% endif %}>Trade</option>
+                                        <option value="sell_trade" {% if row.listing_intent == 'sell_trade' %}selected{% endif %}>Sell/Trade</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <input class="bulk-quantity" type="number" min="1" value="{{ row.quantity }}">
+                                </td>
+                                <td>
+                                    <input class="bulk-price" type="number" min="0" step="0.01" value="{{ row.asking_price }}">
+                                    <small>{{ row.usd_price|default:"--" }} USD ref.</small>
+                                </td>
+                                <td>
+                                    {% if row.match_status == 'matched' %}
+                                    <span class="bulk-status bulk-status--ok">Ready</span>
+                                    {% else %}
+                                    <span class="bulk-status bulk-status--missing">Missing match</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="bulk-summary">
+                <div class="bulk-summary__metric">
+                    <span>Active batch</span>
+                    <strong>{{ bulk_rows|length }}</strong>
+                </div>
+                <div class="bulk-summary__metric">
+                    <span>Matched rows</span>
+                    <strong>{{ matched_count }}</strong>
+                </div>
+                <div class="bulk-summary__metric">
+                    <span>Missing matches</span>
+                    <strong>{{ missing_count }}</strong>
+                </div>
+                <button type="submit" class="button button--primary bulk-summary__submit">Bulk Forge & Publish</button>
+            </section>
+        </form>
+        {{ bulk_rows|json_script:"bulk-rows-data" }}
+        {% endif %}
+    </div>
+</section>
 
 <script>
-    // Verificar que los datos extraídos no estén vacíos antes de enviarlos
-    const extractedData = JSON.parse(document.getElementById('extractedData').textContent || '[]');
-    if (extractedData.length === 0) {
-        console.error('No hay datos extraídos para enviar.');
+(() => {
+    const fileInput = document.querySelector('.bulk-file-button input[type="file"]');
+    const fileButton = document.querySelector('.bulk-file-button');
+    if (fileInput && fileButton) {
+        fileInput.addEventListener('change', () => {
+            const label = fileInput.files.length ? fileInput.files[0].name : 'Import CSV';
+            fileButton.lastChild.textContent = ` ${label}`;
+        });
     }
+
+    const form = document.getElementById('bulkPublishForm');
+    if (!form) {
+        return;
+    }
+    const payloadField = document.getElementById('bulk-payload');
+    const rows = JSON.parse(document.getElementById('bulk-rows-data').textContent);
+
+    form.addEventListener('submit', () => {
+        const tableRows = Array.from(document.querySelectorAll('#bulk-table tbody tr'));
+        const payload = tableRows.map((rowElement, index) => {
+            const base = rows[index];
+            return {
+                ...base,
+                condition: rowElement.querySelector('.bulk-condition').value,
+                listing_intent: rowElement.querySelector('.bulk-intent').value,
+                quantity: rowElement.querySelector('.bulk-quantity').value,
+                asking_price: rowElement.querySelector('.bulk-price').value,
+                card_type: 'owned',
+            };
+        });
+        payloadField.value = JSON.stringify(payload);
+    });
+})();
 </script>
-
-<form method="post" action="{% url 'add_to_desired_cards' %}">
-    {% csrf_token %}
-    <input type="hidden" name="extracted_data" value="{{ extracted_data|json_script:'extractedData' }}">
-    <button type="submit" class="btn btn-secondary">Subir a Cartas Deseadas</button>
-</form>
-
-<form method="post" action="{% url 'add_to_owned_cards' %}">
-    {% csrf_token %}
-    <input type="hidden" name="extracted_data" value="{{ extracted_data|json_script:'extractedData' }}">
-    <button type="submit" class="btn btn-primary">Subir a Cartas en Posesión</button>
-</form>
-{% endif %}
-
-<a href="{% url 'card_list' %}" class="btn btn-secondary">Volver a Mis Cartas</a>
 {% endblock %}

@@ -15,4 +15,4 @@ class CardForm(forms.ModelForm):
         fields = ['name', 'description']
 
 class UploadFileForm(forms.Form):
-    file = forms.FileField(label='Selecciona un archivo TXT')
+    file = forms.FileField(label='Selecciona un archivo CSV')
