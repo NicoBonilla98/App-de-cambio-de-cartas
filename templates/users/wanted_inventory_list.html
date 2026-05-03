@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+
+{% block title %}Wanted Cards Manager{% endblock %}
+
+{% block content %}
+<section class="inventory-page">
+    <div class="inventory-hero">
+        <div>
+            <p class="eyebrow">Wanted Manager</p>
+            <h1>Gestionar buscadas</h1>
+            <p>Una vista compacta para revisar, editar o eliminar las cartas que quieres conseguir.</p>
+        </div>
+        <div class="inventory-hero__actions">
+            <a href="{% url 'card_list' %}" class="button button--ghost">Volver a colección</a>
+            <a href="{% url 'register_cards' %}" class="button button--primary">Agregar búsqueda</a>
+        </div>
+    </div>
+
+    <section class="inventory-stats inventory-stats--two">
+        <div>
+            <span>Búsquedas</span>
+            <strong>{{ total_cards }}</strong>
+        </div>
+        <div>
+            <span>Unidades buscadas</span>
+            <strong>{{ total_units }}</strong>
+        </div>
+    </section>
+
+    <section class="builder-panel inventory-filters-panel">
+        <form method="get" class="inventory-filters inventory-filters--wanted">
+            <div>
+                <label class="listing-label" for="wanted-q">Nombre</label>
+                <input id="wanted-q" type="text" name="q" value="{{ active_filters.q }}" placeholder="Buscar carta">
+            </div>
+            <div>
+                <label class="listing-label" for="wanted-set">Set</label>
+                <select id="wanted-set" name="set">
+                    <option value="">Todos</option>
+                    {% for set_name in set_options %}
+                    <option value="{{ set_name }}" {% if active_filters.set == set_name %}selected{% endif %}>{{ set_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="listing-label" for="wanted-match-mode">Modo de match</label>
+                <select id="wanted-match-mode" name="match_mode">
+                    <option value="">Todos</option>
+                    {% for value, label in match_mode_options %}
+                    <option value="{{ value }}" {% if active_filters.match_mode == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="listing-label" for="wanted-sort">Orden</label>
+                <select id="wanted-sort" name="sort">
+                    <option value="newest" {% if active_filters.sort == 'newest' %}selected{% endif %}>Más nuevas</option>
+                    <option value="oldest" {% if active_filters.sort == 'oldest' %}selected{% endif %}>Más antiguas</option>
+                    <option value="name" {% if active_filters.sort == 'name' %}selected{% endif %}>Nombre</option>
+                    <option value="quantity_desc" {% if active_filters.sort == 'quantity_desc' %}selected{% endif %}>Más cantidad</option>
+                </select>
+            </div>
+            <div class="inventory-filters__actions">
+                <a href="{% url 'wanted_inventory_list' %}" class="button button--ghost">Limpiar</a>
+                <button type="submit" class="button button--primary">Filtrar</button>
+            </div>
+        </form>
+
+        <form id="wanted-bulk-form" method="post" class="inventory-bulk-actions">
+            {% csrf_token %}
+            <div>
+                <label class="listing-label" for="wanted-bulk-action">Accion masiva</label>
+                <select id="wanted-bulk-action" name="bulk_action">
+                    <option value="">Seleccionar</option>
+                    <option value="set_match_mode">Cambiar modo de match</option>
+                    <option value="delete">Eliminar seleccionadas</option>
+                </select>
+            </div>
+            <div>
+                <label class="listing-label" for="wanted-bulk-match-mode">Nuevo modo</label>
+                <select id="wanted-bulk-match-mode" name="bulk_match_mode">
+                    <option value="">Sin cambio</option>
+                    {% for value, label in match_mode_options %}
+                    <option value="{{ value }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="button button--ghost">Aplicar a seleccionadas</button>
+        </form>
+    </section>
+
+    <section class="inventory-table-card">
+        <div class="inventory-table inventory-table--wanted">
+            <div class="inventory-table__row inventory-table__row--head inventory-table__row--wanted">
+                <span></span>
+                <span>Carta</span>
+                <span>Set</span>
+                <span>Cantidad</span>
+                <span>Modo de match</span>
+                <span>Acciones</span>
+            </div>
+
+            {% for user_card in wanted_cards %}
+            <article class="inventory-table__row inventory-table__row--wanted">
+                <label class="inventory-row-select" aria-label="Seleccionar {{ user_card.card.name }}">
+                    <input type="checkbox" name="selected_cards" value="{{ user_card.id }}" form="wanted-bulk-form">
+                </label>
+                <div class="inventory-card-name">
+                    {% if user_card.card.image_url %}
+                    <img src="{{ user_card.card.image_url }}" alt="{{ user_card.card.name }}">
+                    {% else %}
+                    <div class="inventory-card-name__placeholder">{{ user_card.card.name|slice:":1"|upper }}</div>
+                    {% endif %}
+                    <div>
+                        <strong>{{ user_card.card.name }}</strong>
+                        {% if user_card.card.collector_number %}
+                        <small>#{{ user_card.card.collector_number }}</small>
+                        {% endif %}
+                    </div>
+                </div>
+                <span class="inventory-muted">{{ user_card.card.set_name|default:"Unknown set" }}</span>
+                <span>{{ user_card.quantity_required }}</span>
+                <span class="inventory-intent">{{ user_card.get_desired_match_mode_display }}</span>
+                <div class="inventory-actions">
+                    <a href="{% url 'search_card_matches' %}?desired_id={{ user_card.id }}" class="button button--ghost button--small">Matches</a>
+                    <a href="{% url 'edit_user_card' user_card.id %}" class="button button--ghost button--small">Editar</a>
+                    <form method="post" action="{% url 'edit_user_card' user_card.id %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="delete">
+                        <button type="submit" class="button button--ghost button--small">Eliminar</button>
+                    </form>
+                </div>
+            </article>
+            {% empty %}
+            <div class="collection-empty">
+                <h3>No hay cartas buscadas para mostrar.</h3>
+                <p>Ajusta los filtros o agrega una nueva búsqueda.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    {% if wanted_page.paginator.num_pages > 1 %}
+    <nav class="pagination-bar" aria-label="Paginacion de cartas buscadas">
+        <div class="pagination-bar__summary">
+            Mostrando {{ wanted_page.start_index }}-{{ wanted_page.end_index }} de {{ wanted_page.paginator.count }}
+        </div>
+        <div class="pagination-bar__controls">
+            {% if wanted_page.has_previous %}
+            <a href="?{{ page_prefix }}page={{ wanted_page.previous_page_number }}" class="button button--ghost button--small">Anterior</a>
+            {% endif %}
+            <span>Pagina {{ wanted_page.number }} de {{ wanted_page.paginator.num_pages }}</span>
+            {% if wanted_page.has_next %}
+            <a href="?{{ page_prefix }}page={{ wanted_page.next_page_number }}" class="button button--primary button--small">Siguiente</a>
+            {% endif %}
+        </div>
+    </nav>
+    {% endif %}
+</section>
+{% endblock %}

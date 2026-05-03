@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% load money_filters %}
+
+{% block title %}{{ card.name }} | Marketplace{% endblock %}
+
+{% block content %}
+<section class="market-detail">
+    <a href="{% url 'marketplace' %}" class="market-detail__back">Back to marketplace</a>
+
+    <section class="market-detail__hero">
+        <div class="market-detail__art">
+            {% if card.image_url %}
+            <img src="{{ card.image_url }}" alt="{{ card.name }}">
+            {% else %}
+            <div class="market-detail__placeholder">{{ card.name|slice:":1"|upper }}</div>
+            {% endif %}
+        </div>
+
+        <div class="market-detail__summary">
+            <p class="eyebrow">Grouped Listing</p>
+            <h1>{{ card.name }}</h1>
+            <p class="market-detail__meta">
+                {{ card.set_name|default:"Unknown set" }}{% if card.collector_number %} · #{{ card.collector_number }}{% endif %}{% if card.rarity %} · {{ card.rarity }}{% endif %}
+            </p>
+            <p class="market-detail__copy">
+                Aqui vemos todos los coleccionistas que estan publicando esta misma impresion para que puedas comparar precio, estado e intencion antes de negociar.
+            </p>
+
+            <div class="market-detail__stats">
+                <article class="market-detail__stat">
+                    <span>Collectors</span>
+                    <strong>{{ summary.sellers_count|default:0 }}</strong>
+                </article>
+                <article class="market-detail__stat">
+                    <span>Lowest ask</span>
+                    <strong>${{ summary.min_price|default:card.price|money2 }}</strong>
+                </article>
+                <article class="market-detail__stat">
+                    <span>Highest ask</span>
+                    <strong>${{ summary.max_price|default:card.price|money2 }}</strong>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <section class="market-detail__offers">
+        <div class="section-heading">
+            <div>
+                <p class="eyebrow">Available Offers</p>
+                <h2>Choose the collector that fits your trade</h2>
+            </div>
+        </div>
+
+        <div class="market-detail__table">
+            <div class="market-detail__row market-detail__row--header">
+                <span>Collector</span>
+                <span>Condition</span>
+                <span>Intent</span>
+                <span>Quantity</span>
+                <span>Asking price</span>
+                <span></span>
+            </div>
+
+            {% for listing in listings %}
+            <article class="market-detail__row">
+                <div class="market-detail__collector">
+                    <strong>{{ listing.user.username }}</strong>
+                    {% if listing.user.city %}
+                    <small>{{ listing.user.city }}</small>
+                    {% endif %}
+                </div>
+                <span>{{ listing.get_condition_display }}</span>
+                <span>{{ listing.get_listing_intent_display }}</span>
+                <span>{{ listing.quantity_owned }}</span>
+                <strong class="market-detail__price">${{ listing.asking_price|default:card.price|money2 }}</strong>
+                <div class="market-detail__actions">
+                    {% if listing.listing_intent == 'sell' or listing.listing_intent == 'sell_trade' %}
+                    <a href="{% url 'sale_listing_detail' listing.id %}" class="button button--ghost button--small">Buy</a>
+                    {% endif %}
+                    {% if listing.listing_intent == 'trade' or listing.listing_intent == 'sell_trade' %}
+                    <a href="{% url 'initiate_trade' listing.id %}" class="button button--primary button--small">Trade</a>
+                    {% endif %}
+                </div>
+            </article>
+            {% empty %}
+            <div class="collection-empty">
+                <h3>No offers are available right now.</h3>
+                <p>Puede que esta carta aun no tenga publicaciones activas fuera de tu propia coleccion.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+</section>
+{% endblock %}

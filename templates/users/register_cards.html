@@ -1,27 +1,27 @@
 {% extends "base.html" %}
 
-{% block title %}Registrar Carta{% endblock %}
+{% block title %}{% if edit_mode %}Editar Carta{% else %}Registrar Carta{% endif %}{% endblock %}
+{% block body_class %}listing-builder-page{% endblock %}
 
 {% block content %}
-<section class="listing-builder">
+<section class="listing-builder{% if edit_mode %} listing-builder--edit{% endif %}">
     <div class="listing-builder__sidebar">
         <p class="eyebrow">New Listing</p>
-        <h1>Forge New Archive Record</h1>
+        <h1>{{ form_title|default:"Forge New Archive Record" }}</h1>
         <p class="listing-builder__intro">
-            Busca una impresion exacta en Scryfall, revisa la expansion y publica tu carta con un precio base confiable.
+            {{ form_intro|default:"Busca una impresion exacta en Scryfall, revisa la expansion y publica tu carta con un precio base confiable." }}
         </p>
 
-        <div class="listing-steps">
-            <div class="listing-step listing-step--active">1. Card Details</div>
-            <div class="listing-step">2. Condition</div>
-            <div class="listing-step">3. Pricing</div>
-            <div class="listing-step">4. Review</div>
+        <div class="listing-steps" id="listingSteps">
+            <a href="#card-details-panel" class="listing-step listing-step--active" data-step-target="card-details-panel">1. Card Details</a>
+            <a href="#condition-panel" class="listing-step" data-step-target="condition-panel">2. Condition</a>
+            <a href="#pricing-panel" class="listing-step" data-step-target="pricing-panel">3. Pricing</a>
         </div>
     </div>
 
     <form method="post" class="listing-builder__form" id="listingForm">
         {% csrf_token %}
-        <div class="builder-panel">
+        <div class="builder-panel listing-section-panel" id="card-details-panel" data-listing-step="card-details-panel">
             <div class="section-heading">
                 <div>
                     <p class="eyebrow">Card Selection</p>
@@ -30,15 +30,15 @@
             </div>
 
             <div class="search-shell">
-                <label class="listing-label" for="scryfall-search">Search card name</label>
-                <div class="search-shell__controls">
-                    <div class="search-shell__input">
-                        <i class="bi bi-search"></i>
-                        <input id="scryfall-search" type="text" autocomplete="off" placeholder="Start typing a card name">
+                    <label class="listing-label" for="scryfall-search">Search card name</label>
+                    <div class="search-shell__controls">
+                        <div class="search-shell__input">
+                            <i class="bi bi-search"></i>
+                        <input id="scryfall-search" type="text" autocomplete="off" placeholder="Start typing a card name" {% if edit_mode %}disabled{% endif %}>
+                        </div>
                     </div>
-                </div>
-                <div class="search-results" id="scryfall-results" hidden></div>
-                <p class="form-note">Debounced search with local throttling to stay well under the Scryfall limit.</p>
+                    <div class="search-results" id="scryfall-results" hidden></div>
+                <p class="form-note">{% if edit_mode %}La impresion de la carta se mantiene fija; puedes editar precio, cantidad, condicion e intencion.{% else %}Debounced search with local throttling to stay well under the Scryfall limit.{% endif %}</p>
             </div>
 
             <div class="builder-grid">
@@ -65,6 +65,13 @@
                         <option value="desired">Deseada</option>
                     </select>
                 </div>
+                <div class="builder-field" id="desired-match-field" hidden>
+                    <label class="listing-label" for="desired_match_mode">Desired match mode</label>
+                    <select id="desired_match_mode" name="desired_match_mode">
+                        <option value="exact_printing">Solo esta version en especifico</option>
+                        <option value="any_printing">Busco en cualquier version de carta</option>
+                    </select>
+                </div>
                 <div class="builder-field">
                     <label class="listing-label" for="quantity">Quantity</label>
                     <input id="quantity" name="quantity" type="number" min="1" value="1">
@@ -72,7 +79,7 @@
             </div>
         </div>
 
-        <div class="builder-panel">
+        <div class="builder-panel listing-section-panel" id="condition-panel" data-listing-step="condition-panel">
             <div class="section-heading">
                 <div>
                     <p class="eyebrow">Trade Intent</p>
@@ -119,7 +126,7 @@
             </div>
         </div>
 
-        <div class="builder-panel">
+        <div class="builder-panel listing-section-panel" id="pricing-panel" data-listing-step="pricing-panel">
             <div class="section-heading">
                 <div>
                     <p class="eyebrow">Pricing Benchmarks</p>
@@ -163,7 +170,10 @@
 
         <div class="builder-actions">
             <a href="{% url 'card_list' %}" class="button button--ghost">Cancel</a>
-            <button type="submit" class="button button--primary">Forge Listing</button>
+            {% if edit_mode %}
+            <button type="submit" name="action" value="delete" class="button button--ghost" onclick="return confirm('Eliminar esta carta de tu coleccion?');">Delete Card</button>
+            {% endif %}
+            <button type="submit" name="action" value="save" class="button button--primary">{{ submit_label|default:"Forge Listing" }}</button>
         </div>
     </form>
 
@@ -190,6 +200,10 @@
     </aside>
 </section>
 
+{% if edit_card_data %}
+{{ edit_card_data|json_script:"edit-card-data" }}
+{% endif %}
+
 <script>
 (() => {
     const searchInput = document.getElementById('scryfall-search');
@@ -201,6 +215,8 @@
         setName: document.getElementById('set_name'),
         setCode: document.getElementById('set_code'),
         collectorNumber: document.getElementById('collector_number'),
+        cardType: document.getElementById('card_type'),
+        desiredMatchMode: document.getElementById('desired_match_mode'),
         scryfallId: document.getElementById('scryfall_id'),
         imageUrl: document.getElementById('image_url'),
         rarity: document.getElementById('rarity'),
@@ -210,6 +226,7 @@
         askingPrice: document.getElementById('asking_price'),
         description: document.getElementById('description'),
     };
+    const desiredMatchField = document.getElementById('desired-match-field');
 
     const preview = {
         image: document.getElementById('preview-image'),
@@ -227,6 +244,8 @@
 
     let activeController = null;
     let debounceTimer = null;
+    const editCardDataElement = document.getElementById('edit-card-data');
+    const initialCard = editCardDataElement ? JSON.parse(editCardDataElement.textContent) : null;
 
     function formatPrice(value, currency = 'USD') {
         if (!value) {
@@ -336,6 +355,46 @@
         preview.askingPrice.textContent = formatPrice(formFields.askingPrice.value, 'USD');
     }
 
+    function syncDesiredModeVisibility() {
+        const isDesired = formFields.cardType.value === 'desired';
+        desiredMatchField.hidden = !isDesired;
+        if (!isDesired) {
+            formFields.desiredMatchMode.value = 'exact_printing';
+        }
+    }
+
+    const listingSteps = Array.from(document.querySelectorAll('[data-step-target]'));
+    const listingPanels = Array.from(document.querySelectorAll('[data-listing-step]'));
+
+    function setActiveListingStep(stepId) {
+        listingSteps.forEach((step) => {
+            step.classList.toggle('listing-step--active', step.dataset.stepTarget === stepId);
+        });
+    }
+
+    function syncActiveListingStep() {
+        if (!listingPanels.length) {
+            return;
+        }
+        const focusLine = Math.min(window.innerHeight * 0.42, 360);
+        let activePanel = listingPanels[0];
+        let closestDistance = Number.POSITIVE_INFINITY;
+
+        listingPanels.forEach((panel) => {
+            const rect = panel.getBoundingClientRect();
+            const distance = Math.abs(rect.top - focusLine);
+            if (rect.top <= focusLine && rect.bottom >= 120) {
+                activePanel = panel;
+                closestDistance = 0;
+            } else if (distance < closestDistance) {
+                activePanel = panel;
+                closestDistance = distance;
+            }
+        });
+
+        setActiveListingStep(activePanel.dataset.listingStep);
+    }
+
     searchInput.addEventListener('input', () => {
         const query = searchInput.value.trim();
         clearTimeout(debounceTimer);
@@ -346,12 +405,42 @@
         debounceTimer = setTimeout(() => searchCards(query), 450);
     });
 
+    listingSteps.forEach((step) => {
+        step.addEventListener('click', () => setActiveListingStep(step.dataset.stepTarget));
+    });
+    listingPanels.forEach((panel) => {
+        panel.addEventListener('focusin', () => setActiveListingStep(panel.dataset.listingStep));
+    });
+    window.addEventListener('scroll', syncActiveListingStep, { passive: true });
+    window.addEventListener('resize', syncActiveListingStep);
+
     formFields.askingPrice.addEventListener('input', updateAskingPricePreview);
+    formFields.cardType.addEventListener('change', syncDesiredModeVisibility);
     document.querySelectorAll('input[name="condition"]').forEach((radio) => {
         radio.addEventListener('change', () => {
             preview.condition.textContent = radio.nextElementSibling.textContent;
         });
     });
+    syncDesiredModeVisibility();
+    if (initialCard) {
+        setPreview(initialCard);
+        formFields.cardType.value = initialCard.card_type || 'owned';
+        formFields.desiredMatchMode.value = initialCard.desired_match_mode || 'exact_printing';
+        document.getElementById('quantity').value = initialCard.quantity || 1;
+        const intent = document.querySelector(`input[name="listing_intent"][value="${initialCard.listing_intent || 'trade'}"]`);
+        if (intent) {
+            intent.checked = true;
+        }
+        const condition = document.querySelector(`input[name="condition"][value="${initialCard.condition || 'near_mint'}"]`);
+        if (condition) {
+            condition.checked = true;
+            preview.condition.textContent = condition.nextElementSibling.textContent;
+        }
+        formFields.askingPrice.value = initialCard.asking_price || '';
+        updateAskingPricePreview();
+        syncDesiredModeVisibility();
+    }
+    syncActiveListingStep();
 })();
 </script>
 {% endblock %}

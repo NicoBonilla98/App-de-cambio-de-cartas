@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load money_filters %}
 
 {% block title %}Bulk Forge{% endblock %}
 
@@ -8,11 +9,11 @@
         <p class="eyebrow">Archivist Module</p>
         <h1>Bulk Listing</h1>
         <p class="bulk-sidebar__copy">
-            Importa un CSV tipo Moxfield, valida expansion y precio con Scryfall, ajusta el lote y publícalo de una vez.
+            Importa un listado de Moxfield en TXT, TSV o CSV, valida expansion y precio con Scryfall, ajusta el lote y publicalo de una vez.
         </p>
 
         <div class="listing-steps">
-            <div class="listing-step listing-step--active">1. Import CSV</div>
+            <div class="listing-step listing-step--active">1. Import List</div>
             <div class="listing-step">2. Validate</div>
             <div class="listing-step">3. Adjust pricing</div>
             <div class="listing-step">4. Publish batch</div>
@@ -23,34 +24,44 @@
         <section class="builder-panel">
             <div class="section-heading">
                 <div>
-                    <p class="eyebrow">CSV Intake</p>
+                    <p class="eyebrow">Moxfield Intake</p>
                     <h2>Feed the archive</h2>
                 </div>
             </div>
 
-            <form method="post" enctype="multipart/form-data" class="bulk-import-form">
+            <form method="post" enctype="multipart/form-data" class="bulk-import-form" id="bulkImportForm">
                 {% csrf_token %}
                 <div class="bulk-import-actions">
                     <label class="button button--primary bulk-file-button">
-                        <input type="file" name="file" accept=".csv,text/csv" required hidden>
+                        <input type="file" name="file" accept=".txt,.tsv,.csv,text/plain,text/tab-separated-values,text/csv" hidden>
                         <i class="bi bi-upload"></i>
-                        Import CSV
+                        Import File
                     </label>
-                    <span class="form-note">Espera columnas tipo cantidad, nombre y expansión. Si hay header, lo ignoramos.</span>
+                    <span class="form-note">Formato esperado: cantidad, nombre, expansion entre parentesis y numero de carta. Tambien soporta export tab-separated desde Moxfield.</span>
+                    <span class="bulk-file-status" id="bulk-file-status">No file selected yet.</span>
                 </div>
                 <button type="submit" class="button button--ghost">Process Batch</button>
             </form>
 
-            {% if parse_errors %}
-            <div class="bulk-errors">
+            <div class="bulk-progress" id="bulk-progress" hidden>
+                <div class="bulk-progress__header">
+                    <strong>Processing batch...</strong>
+                    <span id="bulk-progress-label">Preparing file</span>
+                </div>
+                <div class="bulk-progress__track" aria-hidden="true">
+                    <div class="bulk-progress__fill" id="bulk-progress-fill"></div>
+                </div>
+                <p class="form-note">We are parsing the list, validating set data and consulting Scryfall pricing.</p>
+            </div>
+
+            <div class="bulk-errors" id="bulk-errors" {% if not parse_errors %}hidden{% endif %}>
                 {% for error in parse_errors %}
                 <div class="message-chip">{{ error }}</div>
                 {% endfor %}
             </div>
-            {% endif %}
         </section>
 
-        {% if bulk_rows %}
+        {% if bulk_rows or parsed_rows %}
         <form method="post" id="bulkPublishForm" class="bulk-publish-form">
             {% csrf_token %}
             <input type="hidden" name="action" value="publish">
@@ -69,7 +80,6 @@
                         <thead>
                             <tr>
                                 <th>Card</th>
-                                <th>Set</th>
                                 <th>Condition</th>
                                 <th>Intent</th>
                                 <th>Quantity</th>
@@ -77,12 +87,11 @@
                                 <th>Status</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="bulk-table-body">
                             {% for row in bulk_rows %}
-                            <tr class="bulk-row {% if row.match_status != 'matched' %}bulk-row--missing{% endif %}"
-                                data-row='{{ row|escapejs }}'>
-                                <td>
-                                    <div class="bulk-card-cell">
+                            <tr class="bulk-row {% if row.match_status != 'matched' %}bulk-row--missing{% endif %}">
+                                <td class="bulk-col bulk-col--card">
+                                    <div class="bulk-card-cell" title="{{ row.set_name|default:row.csv_set_name }}{% if row.set_code %} · {{ row.set_code }}{% endif %}{% if row.csv_collector_number %} · #{{ row.csv_collector_number }}{% endif %}">
                                         {% if row.image_url %}
                                         <img src="{{ row.image_url }}" alt="{{ row.card_name }}">
                                         {% else %}
@@ -94,11 +103,7 @@
                                         </div>
                                     </div>
                                 </td>
-                                <td>
-                                    <strong>{{ row.set_name|default:row.csv_set_name }}</strong>
-                                    <span>{{ row.set_code }}</span>
-                                </td>
-                                <td>
+                                <td class="bulk-col bulk-col--condition">
                                     <select class="bulk-condition">
                                         <option value="near_mint" {% if row.condition == 'near_mint' %}selected{% endif %}>Near Mint</option>
                                         <option value="lightly_played" {% if row.condition == 'lightly_played' %}selected{% endif %}>Lightly Played</option>
@@ -107,25 +112,25 @@
                                         <option value="damaged" {% if row.condition == 'damaged' %}selected{% endif %}>Damaged</option>
                                     </select>
                                 </td>
-                                <td>
+                                <td class="bulk-col bulk-col--intent">
                                     <select class="bulk-intent">
                                         <option value="sell" {% if row.listing_intent == 'sell' %}selected{% endif %}>Sell</option>
                                         <option value="trade" {% if row.listing_intent == 'trade' %}selected{% endif %}>Trade</option>
                                         <option value="sell_trade" {% if row.listing_intent == 'sell_trade' %}selected{% endif %}>Sell/Trade</option>
                                     </select>
                                 </td>
-                                <td>
+                                <td class="bulk-col bulk-col--quantity">
                                     <input class="bulk-quantity" type="number" min="1" value="{{ row.quantity }}">
                                 </td>
-                                <td>
-                                    <input class="bulk-price" type="number" min="0" step="0.01" value="{{ row.asking_price }}">
-                                    <small>{{ row.usd_price|default:"--" }} USD ref.</small>
+                                <td class="bulk-col bulk-col--price">
+                                    <input class="bulk-price" type="number" min="0" step="0.01" value="{{ row.asking_price|money2 }}">
+                                    <small>{% if row.usd_price %}{{ row.usd_price|money2 }}{% else %}--{% endif %} USD ref.</small>
                                 </td>
-                                <td>
+                                <td class="bulk-col bulk-col--status">
                                     {% if row.match_status == 'matched' %}
-                                    <span class="bulk-status bulk-status--ok">Ready</span>
+                                    <span class="bulk-status bulk-status--ok" aria-label="Ready" title="Ready"></span>
                                     {% else %}
-                                    <span class="bulk-status bulk-status--missing">Missing match</span>
+                                    <span class="bulk-status bulk-status--missing" aria-label="Missing match" title="Missing match"></span>
                                     {% endif %}
                                 </td>
                             </tr>
@@ -138,33 +143,256 @@
             <section class="bulk-summary">
                 <div class="bulk-summary__metric">
                     <span>Active batch</span>
-                    <strong>{{ bulk_rows|length }}</strong>
+                    <strong id="bulk-active-count">{% if bulk_rows %}{{ bulk_rows|length }}{% else %}{{ parsed_count }}{% endif %}</strong>
                 </div>
                 <div class="bulk-summary__metric">
                     <span>Matched rows</span>
-                    <strong>{{ matched_count }}</strong>
+                    <strong id="bulk-matched-count">{{ matched_count }}</strong>
                 </div>
                 <div class="bulk-summary__metric">
                     <span>Missing matches</span>
-                    <strong>{{ missing_count }}</strong>
+                    <strong id="bulk-missing-count">{{ missing_count }}</strong>
                 </div>
-                <button type="submit" class="button button--primary bulk-summary__submit">Bulk Forge & Publish</button>
             </section>
+
+            <button type="submit" class="button button--primary bulk-publish-cta" id="bulk-publish-button" {% if parsed_rows and not bulk_rows %}disabled{% endif %}>Bulk Forge & Publish</button>
         </form>
         {{ bulk_rows|json_script:"bulk-rows-data" }}
+        {{ parsed_rows|json_script:"parsed-bulk-rows-data" }}
         {% endif %}
     </div>
 </section>
 
 <script>
 (() => {
+    const importForm = document.getElementById('bulkImportForm');
     const fileInput = document.querySelector('.bulk-file-button input[type="file"]');
     const fileButton = document.querySelector('.bulk-file-button');
+    const fileStatus = document.getElementById('bulk-file-status');
+    const progressBox = document.getElementById('bulk-progress');
+    const progressFill = document.getElementById('bulk-progress-fill');
+    const progressLabel = document.getElementById('bulk-progress-label');
+    let progressTimer = null;
+
+    function startProgress() {
+        if (!progressBox || !progressFill || !progressLabel) {
+            return;
+        }
+        const phases = [
+            { limit: 18, label: 'Reading file structure' },
+            { limit: 42, label: 'Parsing Moxfield rows' },
+            { limit: 72, label: 'Consulting Scryfall printings' },
+            { limit: 92, label: 'Assembling validated batch' },
+        ];
+        let value = 4;
+        let phaseIndex = 0;
+        progressBox.hidden = false;
+        progressFill.style.width = `${value}%`;
+        progressLabel.textContent = phases[0].label;
+
+        progressTimer = window.setInterval(() => {
+            const phase = phases[Math.min(phaseIndex, phases.length - 1)];
+            if (value < phase.limit) {
+                value += Math.max(1, Math.round((phase.limit - value) / 6));
+            } else if (phaseIndex < phases.length - 1) {
+                phaseIndex += 1;
+            }
+            progressFill.style.width = `${Math.min(value, 94)}%`;
+            progressLabel.textContent = phases[Math.min(phaseIndex, phases.length - 1)].label;
+        }, 260);
+    }
+
+    function stopProgress() {
+        if (progressTimer) {
+            window.clearInterval(progressTimer);
+            progressTimer = null;
+        }
+    }
+
     if (fileInput && fileButton) {
         fileInput.addEventListener('change', () => {
-            const label = fileInput.files.length ? fileInput.files[0].name : 'Import CSV';
+            const label = fileInput.files.length ? fileInput.files[0].name : 'Import File';
             fileButton.lastChild.textContent = ` ${label}`;
+            if (fileStatus) {
+                fileStatus.textContent = fileInput.files.length
+                    ? `Selected: ${fileInput.files[0].name}`
+                    : 'No file selected yet.';
+                fileStatus.classList.remove('bulk-file-status--error');
+            }
         });
+    }
+
+    if (importForm && fileInput) {
+        importForm.addEventListener('submit', (event) => {
+            if (!fileInput.files.length) {
+                event.preventDefault();
+                stopProgress();
+                if (fileStatus) {
+                    fileStatus.textContent = 'Choose a TXT, TSV or CSV file before processing the batch.';
+                    fileStatus.classList.add('bulk-file-status--error');
+                }
+                return;
+            }
+            startProgress();
+        });
+    }
+
+    function setProgress(percent, label) {
+        if (!progressBox || !progressFill || !progressLabel) {
+            return;
+        }
+        stopProgress();
+        progressBox.hidden = false;
+        progressFill.style.width = `${Math.max(0, Math.min(percent, 100))}%`;
+        progressLabel.textContent = label;
+    }
+
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function formatMoney(value) {
+        const number = Number(value);
+        if (!Number.isFinite(number)) {
+            return '';
+        }
+        return number.toFixed(2);
+    }
+
+    function getCsrfToken() {
+        const tokenField = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (tokenField) {
+            return tokenField.value;
+        }
+        const cookie = document.cookie
+            .split('; ')
+            .find((row) => row.startsWith('csrftoken='));
+        return cookie ? decodeURIComponent(cookie.split('=')[1]) : '';
+    }
+
+    function renderBulkRow(row) {
+        const isMatched = row.match_status === 'matched';
+        const titleParts = [
+            row.set_name || row.csv_set_name,
+            row.set_code ? `- ${row.set_code}` : '',
+            row.csv_collector_number ? `#${row.csv_collector_number}` : '',
+        ].filter(Boolean);
+        const image = row.image_url
+            ? `<img src="${escapeHtml(row.image_url)}" alt="${escapeHtml(row.card_name)}">`
+            : `<div class="bulk-card-cell__placeholder">${escapeHtml(row.card_name || '?').slice(0, 1)}</div>`;
+        const priceValue = formatMoney(row.asking_price || row.usd_price);
+        const referencePrice = row.usd_price ? `${formatMoney(row.usd_price)} USD ref.` : '-- USD ref.';
+
+        return `
+            <tr class="bulk-row ${isMatched ? '' : 'bulk-row--missing'}">
+                <td class="bulk-col bulk-col--card">
+                    <div class="bulk-card-cell" title="${escapeHtml(titleParts.join(' '))}">
+                        ${image}
+                        <div>
+                            <strong>${escapeHtml(row.card_name)}</strong>
+                            <span>${escapeHtml(row.rarity || 'No rarity')}</span>
+                        </div>
+                    </div>
+                </td>
+                <td class="bulk-col bulk-col--condition">
+                    <select class="bulk-condition">
+                        <option value="near_mint" ${row.condition === 'near_mint' ? 'selected' : ''}>Near Mint</option>
+                        <option value="lightly_played" ${row.condition === 'lightly_played' ? 'selected' : ''}>Lightly Played</option>
+                        <option value="moderately_played" ${row.condition === 'moderately_played' ? 'selected' : ''}>Moderately Played</option>
+                        <option value="heavily_played" ${row.condition === 'heavily_played' ? 'selected' : ''}>Heavily Played</option>
+                        <option value="damaged" ${row.condition === 'damaged' ? 'selected' : ''}>Damaged</option>
+                    </select>
+                </td>
+                <td class="bulk-col bulk-col--intent">
+                    <select class="bulk-intent">
+                        <option value="sell" ${row.listing_intent === 'sell' ? 'selected' : ''}>Sell</option>
+                        <option value="trade" ${row.listing_intent === 'trade' ? 'selected' : ''}>Trade</option>
+                        <option value="sell_trade" ${row.listing_intent === 'sell_trade' ? 'selected' : ''}>Sell/Trade</option>
+                    </select>
+                </td>
+                <td class="bulk-col bulk-col--quantity">
+                    <input class="bulk-quantity" type="number" min="1" value="${escapeHtml(row.quantity || 1)}">
+                </td>
+                <td class="bulk-col bulk-col--price">
+                    <input class="bulk-price" type="number" min="0" step="0.01" value="${escapeHtml(priceValue)}">
+                    <small>${escapeHtml(referencePrice)}</small>
+                </td>
+                <td class="bulk-col bulk-col--status">
+                    <span class="bulk-status ${isMatched ? 'bulk-status--ok' : 'bulk-status--missing'}" aria-label="${isMatched ? 'Ready' : 'Missing match'}" title="${isMatched ? 'Ready' : 'Missing match'}"></span>
+                </td>
+            </tr>`;
+    }
+
+    function addBulkError(message) {
+        const errorsBox = document.getElementById('bulk-errors');
+        if (!errorsBox) {
+            return;
+        }
+        errorsBox.hidden = false;
+        errorsBox.insertAdjacentHTML('beforeend', `<div class="message-chip">${escapeHtml(message)}</div>`);
+    }
+
+    async function processParsedRows(parsedRows, rows, tableBody) {
+        const chunkSize = 5;
+        const publishButton = document.getElementById('bulk-publish-button');
+        const activeCount = document.getElementById('bulk-active-count');
+        const matchedCount = document.getElementById('bulk-matched-count');
+        const missingCount = document.getElementById('bulk-missing-count');
+        let matched = 0;
+        let missing = 0;
+
+        if (publishButton) {
+            publishButton.disabled = true;
+        }
+        tableBody.innerHTML = '';
+        if (activeCount) activeCount.textContent = parsedRows.length;
+        if (matchedCount) matchedCount.textContent = '0';
+        if (missingCount) missingCount.textContent = '0';
+        setProgress(4, `Preparing ${parsedRows.length} rows`);
+
+        for (let offset = 0; offset < parsedRows.length; offset += chunkSize) {
+            const chunk = parsedRows.slice(offset, offset + chunkSize);
+            setProgress(Math.round((offset / parsedRows.length) * 92), `Consulting Scryfall rows ${offset + 1}-${Math.min(offset + chunkSize, parsedRows.length)}`);
+            const response = await fetch("{% url 'bulk_lookup_chunk' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken(),
+                },
+                body: JSON.stringify({ rows: chunk }),
+            });
+            if (!response.ok) {
+                throw new Error('The batch lookup request failed.');
+            }
+            const result = await response.json();
+            if (result.status !== 'success') {
+                throw new Error(result.message || 'The batch lookup request failed.');
+            }
+            for (const error of result.errors || []) {
+                addBulkError(error);
+            }
+            for (const row of result.rows || []) {
+                rows.push(row);
+                if (row.match_status === 'matched') {
+                    matched += 1;
+                } else {
+                    missing += 1;
+                }
+                tableBody.insertAdjacentHTML('beforeend', renderBulkRow(row));
+            }
+            if (matchedCount) matchedCount.textContent = matched;
+            if (missingCount) missingCount.textContent = missing;
+        }
+
+        setProgress(100, 'Validated batch ready');
+        if (publishButton) {
+            publishButton.disabled = rows.length === 0;
+        }
     }
 
     const form = document.getElementById('bulkPublishForm');
@@ -172,7 +400,18 @@
         return;
     }
     const payloadField = document.getElementById('bulk-payload');
-    const rows = JSON.parse(document.getElementById('bulk-rows-data').textContent);
+    const tableBody = document.getElementById('bulk-table-body');
+    const rowsDataElement = document.getElementById('bulk-rows-data');
+    const parsedRowsElement = document.getElementById('parsed-bulk-rows-data');
+    const rows = rowsDataElement ? JSON.parse(rowsDataElement.textContent) : [];
+    const parsedRows = parsedRowsElement ? JSON.parse(parsedRowsElement.textContent) : [];
+
+    if (parsedRows.length && rows.length === 0 && tableBody) {
+        processParsedRows(parsedRows, rows, tableBody).catch((error) => {
+            setProgress(100, 'Batch validation stopped');
+            addBulkError(error.message || 'No se pudo procesar el lote.');
+        });
+    }
 
     form.addEventListener('submit', () => {
         const tableRows = Array.from(document.querySelectorAll('#bulk-table tbody tr'));

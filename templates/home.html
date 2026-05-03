@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load money_filters %}
 
 {% block body_class %}landing-page{% endblock %}
 
@@ -64,7 +65,7 @@
             <div class="featured-card__body">
                 <div class="featured-card__row">
                     <h3>{{ card.name }}</h3>
-                    <strong>${{ card.price }}</strong>
+                    <strong>${{ card.price|money2 }}</strong>
                 </div>
                 <p>{{ card.description|default:"Carta disponible dentro del ecosistema de intercambio."|truncatechars:110 }}</p>
             </div>

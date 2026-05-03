@@ -1,30 +1,94 @@
 {% extends 'base.html' %}
+{% load money_filters %}
 
 {% block content %}
-<h1>Lista de Intercambios</h1>
+<section class="exchange-board">
+    <div class="section-heading">
+        <div>
+            <p class="eyebrow">Exchange Ledger</p>
+            <h1>Trade activity across your archive</h1>
+        </div>
+    </div>
 
-<table>
-    <thead>
-        <tr>
-            <th>Remitente</th>
-            <th>Receptor</th>
-            <th>Cartas del Remitente</th>
-            <th>Cartas del Receptor</th>
-            <th>Fecha</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for exchange in exchanges %}
-        <tr>
-            <td>{{ exchange.sender.username }}</td>
-            <td>{{ exchange.receiver.username }}</td>
-            <td>{{ exchange.sender_cards }}</td>
-            <td>{{ exchange.receiver_cards }}</td>
-            <td>{{ exchange.date }}</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+    <section class="exchange-board__section">
+        <div class="section-heading">
+            <div>
+                <p class="eyebrow">Mixed Offers</p>
+                <h2>Card plus cash proposals</h2>
+            </div>
+        </div>
 
-<a href="{% url 'card_list' %}">Volver a Mis Cartas</a>
+        <div class="exchange-board__list">
+            {% for trade_offer in trade_offers %}
+            <article class="exchange-card">
+                <div>
+                    <p class="exchange-card__title">{{ trade_offer.requested_listing.card.name }}</p>
+                    <small>{{ trade_offer.sender.username }} → {{ trade_offer.receiver.username }}</small>
+                </div>
+                <div class="exchange-card__totals">
+                    <span>Cards applied: ${{ trade_offer.offered_cards_value|money2 }}</span>
+                    <span>Cash due: ${{ trade_offer.cash_due|money2 }}</span>
+                </div>
+                {% if trade_offer.items.all %}
+                <p class="exchange-card__items">
+                    {% for item in trade_offer.items.all %}
+                    {{ item.offered_user_card.card.name }}{% if not forloop.last %}, {% endif %}
+                    {% endfor %}
+                </p>
+                {% endif %}
+                {% if trade_offer.message %}
+                <p class="exchange-card__message">{{ trade_offer.message }}</p>
+                {% endif %}
+                <div class="exchange-card__footer">
+                    <strong class="exchange-card__status">{{ trade_offer.get_status_display }}</strong>
+                    {% if trade_offer.status == 'accepted' or trade_offer.status == 'completed' %}
+                    <a href="{% url 'meeting_trade_offer' trade_offer.id %}?readonly=1" class="button button--ghost button--small">Ver acuerdo</a>
+                    {% endif %}
+                </div>
+            </article>
+            {% empty %}
+            <div class="collection-empty">
+                <h3>No mixed trade offers yet.</h3>
+                <p>Cuando armes una propuesta desde el marketplace, aparecera aqui.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="exchange-board__section">
+        <div class="section-heading">
+            <div>
+                <p class="eyebrow">Legacy Exchanges</p>
+                <h2>Existing exchange history</h2>
+            </div>
+        </div>
+
+        <div class="exchange-board__list">
+            {% for exchange in exchanges %}
+            <article class="exchange-card">
+                <div>
+                    <p class="exchange-card__title">{{ exchange.sender.username }} ↔ {{ exchange.receiver.username }}</p>
+                    <small>{{ exchange.date }}</small>
+                </div>
+                <p class="exchange-card__items">Sender cards: {{ exchange.sender_cards|default:"Direct purchase" }}</p>
+                <p class="exchange-card__items">Target card: {% if exchange.target_card %}{{ exchange.target_card.name }}{% else %}{{ exchange.receiver_cards }}{% endif %}</p>
+                {% if exchange.agreed_price %}
+                <p class="exchange-card__items">Agreed price: ${{ exchange.agreed_price }}</p>
+                {% endif %}
+                <div class="exchange-card__footer">
+                    <strong class="exchange-card__status">{{ exchange.get_status_display }}</strong>
+                    {% if exchange.exchange_type == 'sale' and exchange.status != 'pending' and exchange.status != 'rejected' %}
+                    <a href="{% url 'meeting_exchange' exchange.id %}?readonly=1" class="button button--ghost button--small">Ver acuerdo</a>
+                    {% endif %}
+                </div>
+            </article>
+            {% empty %}
+            <div class="collection-empty">
+                <h3>No legacy exchanges yet.</h3>
+                <p>Tu historial clasico de intercambios aparecera aqui.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+</section>
 {% endblock %}
