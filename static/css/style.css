@@ -412,8 +412,52 @@ button,
 
 .featured-card__art {
   position: relative;
-  min-height: 310px;
+  min-height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 34px;
   background-color: #1b1b1e;
+  overflow: hidden;
+}
+
+.featured-card__art img {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: min(64%, 210px);
+  max-height: 295px;
+  object-fit: contain;
+  object-position: center center;
+  border-radius: 10px;
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.34);
+}
+
+.landing-page .featured-card__art.featured-card__art--image {
+  height: 340px;
+  min-height: 340px;
+  padding: 24px;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.landing-page .featured-card__art.featured-card__art--image > img {
+  width: auto !important;
+  height: auto !important;
+  max-width: 210px !important;
+  max-height: 295px !important;
+  min-width: 0 !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+  flex: 0 0 auto;
+}
+
+.featured-card__art--image::before,
+.featured-card__art--image::after {
+  display: none;
 }
 
 .featured-card__art--1 {
@@ -484,6 +528,7 @@ button,
 
 .featured-card__badge {
   position: absolute;
+  z-index: 2;
   top: 16px;
   right: 16px;
   padding: 6px 10px;
@@ -1340,6 +1385,22 @@ ul {
 .bulk-table td small {
   display: block;
   color: var(--muted);
+}
+
+.featured-card__metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.featured-card__metrics span {
+  padding: 7px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  font-size: 0.8rem;
 }
 
 .bulk-card-cell span {
