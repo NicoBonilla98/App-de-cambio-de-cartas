@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+{% load money_filters %}
+
+{% block title %}Marketplace{% endblock %}
+
+{% block content %}
+<section class="marketplace-page">
+    <aside class="marketplace-sidebar">
+        <div class="marketplace-sidebar__intro">
+            <h2>Library Filters</h2>
+            <p>Refine your search</p>
+        </div>
+
+        <form method="get" class="marketplace-sidebar__form">
+            <div class="marketplace-filter-block">
+                <label class="listing-label" for="market-q">Search</label>
+                <input id="market-q" type="text" name="q" value="{{ active_filters.q }}" placeholder="Search card name or keywords">
+            </div>
+
+            <div class="marketplace-filter-block">
+                <label class="listing-label" for="market-rarity">Rarity</label>
+                <select id="market-rarity" name="rarity">
+                    <option value="">All rarities</option>
+                    {% for rarity in rarity_options %}
+                    <option value="{{ rarity }}" {% if active_filters.rarity == rarity %}selected{% endif %}>{{ rarity }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="marketplace-filter-block">
+                <label class="listing-label" for="market-set">Set selection</label>
+                <select id="market-set" name="set">
+                    <option value="">All sets</option>
+                    {% for set_name in set_options %}
+                    <option value="{{ set_name }}" {% if active_filters.set == set_name %}selected{% endif %}>{{ set_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="marketplace-filter-block">
+                <label class="listing-label" for="market-condition">Condition</label>
+                <select id="market-condition" name="condition">
+                    <option value="">Any condition</option>
+                    {% for condition_value, condition_label in condition_options %}
+                    <option value="{{ condition_value }}" {% if active_filters.condition == condition_value %}selected{% endif %}>{{ condition_label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="marketplace-filter-block">
+                <label class="listing-label">Price range</label>
+                <div class="marketplace-price-range">
+                    <input type="number" name="min_price" min="0" step="0.01" value="{{ active_filters.min_price }}" placeholder="Min">
+                    <input type="number" name="max_price" min="0" step="0.01" value="{{ active_filters.max_price }}" placeholder="Max">
+                </div>
+            </div>
+
+            <div class="builder-actions">
+                <a href="{% url 'marketplace' %}" class="button button--ghost">Reset filters</a>
+                <button type="submit" class="button button--primary">Apply</button>
+            </div>
+        </form>
+    </aside>
+
+    <div class="marketplace-main">
+        <section class="marketplace-hero">
+            <div>
+                <p class="eyebrow">Market Archive</p>
+                <h1>Ethereal Marketplace</h1>
+                <p class="marketplace-hero__copy">
+                    Cartas agrupadas por impresion para ver oferta real, rango de precios y cuantos coleccionistas estan publicando cada pieza.
+                </p>
+            </div>
+
+            <form method="get" class="marketplace-sort">
+                <input type="hidden" name="q" value="{{ active_filters.q }}">
+                <input type="hidden" name="set" value="{{ active_filters.set }}">
+                <input type="hidden" name="rarity" value="{{ active_filters.rarity }}">
+                <input type="hidden" name="condition" value="{{ active_filters.condition }}">
+                <input type="hidden" name="min_price" value="{{ active_filters.min_price }}">
+                <input type="hidden" name="max_price" value="{{ active_filters.max_price }}">
+                <label class="listing-label" for="market-sort">Sort by</label>
+                <select id="market-sort" name="sort" onchange="this.form.submit()">
+                    <option value="price_asc" {% if active_filters.sort == 'price_asc' %}selected{% endif %}>Price: Low to High</option>
+                    <option value="price_desc" {% if active_filters.sort == 'price_desc' %}selected{% endif %}>Price: High to Low</option>
+                    <option value="newest" {% if active_filters.sort == 'newest' %}selected{% endif %}>Newest</option>
+                    <option value="oldest" {% if active_filters.sort == 'oldest' %}selected{% endif %}>Oldest</option>
+                    <option value="name" {% if active_filters.sort == 'name' %}selected{% endif %}>Card Name</option>
+                </select>
+            </form>
+        </section>
+
+        {% if active_filter_labels %}
+        <div class="marketplace-chips">
+            {% for label in active_filter_labels %}
+            <span class="marketplace-chip">{{ label }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <section class="marketplace-top">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">Top Relics</p>
+                    <h2>The most contested printings in the archive.</h2>
+                </div>
+            </div>
+
+            <div class="marketplace-top-grid">
+                {% for listing in featured_cards %}
+                <article class="marketplace-featured-card">
+                    <div class="marketplace-featured-card__art">
+                        {% if listing.card__image_url %}
+                        <img src="{{ listing.card__image_url }}" alt="{{ listing.card__name }}">
+                        {% else %}
+                        <div class="marketplace-featured-card__placeholder">{{ listing.card__name|slice:":1"|upper }}</div>
+                        {% endif %}
+                        <span class="marketplace-featured-card__badge">{{ listing.card__rarity|default:"Featured" }}</span>
+                    </div>
+                    <div class="marketplace-featured-card__body">
+                        <div>
+                            <h3>{{ listing.card__name }}</h3>
+                            <p>{{ listing.card__set_name|default:"Unknown set" }}{% if listing.card__collector_number %} · #{{ listing.card__collector_number }}{% endif %}</p>
+                        </div>
+                        <div class="marketplace-featured-card__price">
+                            <span>{{ listing.sellers_count }} collector{{ listing.sellers_count|pluralize }} listing this printing</span>
+                            <strong>From ${{ listing.min_price|default:listing.card__price|money2 }}</strong>
+                            {% if listing.max_price and listing.max_price != listing.min_price %}
+                            <small>Up to ${{ listing.max_price|money2 }}</small>
+                            {% endif %}
+                        </div>
+                        <div class="builder-actions">
+                            <a href="{% url 'marketplace_card_detail' listing.card_id %}" class="button button--ghost button--small">View offers</a>
+                        </div>
+                    </div>
+                </article>
+                {% empty %}
+                <div class="collection-empty">
+                    <h3>No featured listings yet.</h3>
+                    <p>Cuando los usuarios publiquen cartas en posesion, aqui apareceran las impresiones con mas actividad.</p>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="marketplace-listings">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">Grouped Archive</p>
+                    <h2>Compare printings before choosing a seller</h2>
+                </div>
+            </div>
+
+            <div class="marketplace-grid">
+                {% for listing in listings %}
+                <article class="marketplace-card">
+                    <div class="marketplace-card__art">
+                        {% if listing.card__image_url %}
+                        <img src="{{ listing.card__image_url }}" alt="{{ listing.card__name }}">
+                        {% else %}
+                        <div class="marketplace-card__placeholder">{{ listing.card__name|slice:":1"|upper }}</div>
+                        {% endif %}
+                        <span class="marketplace-card__rarity">{{ listing.card__rarity|default:"Unknown" }}</span>
+                    </div>
+                    <div class="marketplace-card__body">
+                        <h3>{{ listing.card__name }}</h3>
+                        <div class="marketplace-card__stats">
+                            <div>
+                                <span>Collectors</span>
+                                <strong>{{ listing.sellers_count }}</strong>
+                            </div>
+                            <div>
+                                <span>From</span>
+                                <strong>${{ listing.min_price|default:listing.card__price|money2 }}</strong>
+                            </div>
+                        </div>
+                        <p>{{ listing.card__set_name|default:"Unknown set" }}{% if listing.card__collector_number %} · #{{ listing.card__collector_number }}{% endif %}</p>
+                        {% if listing.max_price and listing.max_price != listing.min_price %}
+                        <p class="marketplace-card__range">Range: ${{ listing.min_price|money2 }} - ${{ listing.max_price|money2 }}</p>
+                        {% endif %}
+                        <div class="marketplace-card__footer">
+                            <span>{{ listing.sellers_count }} offer{{ listing.sellers_count|pluralize }}</span>
+                            <a href="{% url 'marketplace_card_detail' listing.card_id %}" class="button button--ghost button--small">Compare offers</a>
+                        </div>
+                    </div>
+                </article>
+                {% empty %}
+                <div class="collection-empty">
+                    <h3>No marketplace listings match these filters.</h3>
+                    <p>Prueba otro set, rareza, condicion o termino de busqueda.</p>
+                </div>
+                {% endfor %}
+            </div>
+
+            {% if listings_page.paginator.num_pages > 1 %}
+            <nav class="pagination-bar pagination-bar--center" aria-label="Paginacion del marketplace">
+                <div class="pagination-bar__summary">
+                    Mostrando {{ listings_page.start_index }}-{{ listings_page.end_index }} de {{ listings_page.paginator.count }} impresiones
+                </div>
+                <div class="pagination-bar__controls">
+                    {% if listings_page.has_previous %}
+                    <a href="?{{ page_prefix }}page={{ listings_page.previous_page_number }}" class="button button--ghost button--small">Anterior</a>
+                    {% endif %}
+                    <span>Pagina {{ listings_page.number }} de {{ listings_page.paginator.num_pages }}</span>
+                    {% if listings_page.has_next %}
+                    <a href="?{{ page_prefix }}page={{ listings_page.next_page_number }}" class="button button--primary button--small">Expand archive</a>
+                    {% endif %}
+                </div>
+            </nav>
+            {% endif %}
+        </section>
+    </div>
+</section>
+{% endblock %}

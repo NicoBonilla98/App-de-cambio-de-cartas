@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Active Ritual Offers{% endblock %}
+
+{% block content %}
+<section class="offers-page">
+    <div class="offers-page__hero">
+        <p class="eyebrow">Vault Access</p>
+        <h1>Active Ritual Offers</h1>
+        <p>Review incoming propositions for your captured relics. Each offer represents a pact waiting to be sealed within the archive.</p>
+        <p class="offers-page__expiry-note">Offers expire after 48 hours. If neither side responds in time, the proposal is automatically rejected.</p>
+    </div>
+
+    {% if expired_count %}
+    <div class="offers-page__expired-banner">
+        {{ expired_count }} offer{{ expired_count|pluralize }} expired automatically after 2 days without response.
+    </div>
+    {% endif %}
+
+    <div class="offers-board">
+        {% for group in offer_groups %}
+        <article class="offer-group-card">
+            <div class="offer-group-card__artifact">
+                <div class="offer-group-card__image">
+                    {% if group.listing.card.image_url %}
+                    <img src="{{ group.listing.card.image_url }}" alt="{{ group.listing.card.name }}">
+                    {% else %}
+                    <div class="offer-group-card__placeholder">{{ group.listing.card.name|slice:":1"|upper }}</div>
+                    {% endif %}
+                </div>
+                <h2>{{ group.listing.card.name }}</h2>
+                <span>{{ group.listing.card.rarity|default:"Archive Listing" }}</span>
+            </div>
+
+            <div class="offer-group-card__proposals">
+                <div class="offer-group-card__heading">
+                    <p>Incoming Proposals ({{ group.proposals|length }})</p>
+                </div>
+
+                <div class="offer-proposal-list">
+                    {% for proposal in group.proposals %}
+                    <article class="offer-proposal-row">
+                        <div class="offer-proposal-row__sender">
+                            <div class="offer-proposal-row__avatar">{{ proposal.sender.username|slice:":1"|upper }}</div>
+                            <div>
+                                <strong>{{ proposal.title }}</strong>
+                                <small>{{ proposal.store }}</small>
+                            </div>
+                        </div>
+
+                        <div class="offer-proposal-row__value">
+                            <span>{{ proposal.value_label }}</span>
+                            <strong {% if proposal.kind == 'trade' %}class="offer-proposal-row__value--trade"{% endif %}>{{ proposal.value_text }}</strong>
+                            {% if proposal.note %}
+                            <small>{{ proposal.note }}</small>
+                            {% endif %}
+                        </div>
+
+                        <div class="offer-proposal-row__actions">
+                            {% if proposal.secondary_url %}
+                            <a href="{% url proposal.primary_url.0 proposal.primary_url.1 %}" class="button button--ghost button--small">{{ proposal.primary_label }}</a>
+                            <form method="post" action="{% url proposal.secondary_url.0 proposal.secondary_url.1 %}">
+                                {% csrf_token %}
+                                <button type="submit" class="button button--primary button--small">{{ proposal.secondary_label }}</button>
+                            </form>
+                            {% else %}
+                            <form method="post" action="{% url proposal.primary_url.0 proposal.primary_url.1 %}">
+                                {% csrf_token %}
+                                <button type="submit" class="button button--primary button--small">{{ proposal.primary_label }}</button>
+                            </form>
+                            {% endif %}
+                            <form method="post" action="{% url proposal.reject_url.0 proposal.reject_url.1 %}">
+                                {% csrf_token %}
+                                <button type="submit" class="button button--ghost button--small">Reject</button>
+                            </form>
+                        </div>
+                    </article>
+                    {% endfor %}
+                </div>
+            </div>
+        </article>
+        {% empty %}
+        <div class="collection-empty">
+            <h3>No active offers right now.</h3>
+            <p>When someone wants to buy or trade for one of your cards, the proposal will appear here.</p>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

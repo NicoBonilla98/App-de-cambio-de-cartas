@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% load money_filters %}
+
+{% block title %}Trade Review | {{ trade_offer.requested_listing.card.name }}{% endblock %}
+
+{% block content %}
+<section class="trade-review">
+    <a href="{% url 'active_ritual_offers' %}" class="market-detail__back">Back to offers</a>
+
+    <section class="trade-review__hero">
+        <div class="trade-review__column">
+            <p class="eyebrow">Their Offering</p>
+            <h1>{{ trade_offer.sender.username }}</h1>
+            <p>{{ trade_offer.sender.get_preferred_store_display|default:"No preferred store" }}</p>
+
+            <div class="trade-review__items">
+                {% for item in trade_offer.items.all %}
+                <article class="trade-review__item">
+                    <div class="trade-review__item-art">
+                        {% if item.offered_user_card.card.image_url %}
+                        <img src="{{ item.offered_user_card.card.image_url }}" alt="{{ item.offered_user_card.card.name }}">
+                        {% else %}
+                        <div class="trade-offer-card__placeholder">{{ item.offered_user_card.card.name|slice:":1"|upper }}</div>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <strong>{{ item.offered_user_card.card.name }}</strong>
+                        <small>{{ item.offered_user_card.get_condition_display }} · ${{ item.valuation_price|money2 }}</small>
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="trade-review__center">
+            <span>Cards value</span>
+            <strong>${{ trade_offer.offered_cards_value|money2 }}</strong>
+            <span>Cash due</span>
+            <strong>${{ trade_offer.cash_due|money2 }}</strong>
+        </div>
+
+        <div class="trade-review__column">
+            <p class="eyebrow">Your Requested Card</p>
+            <h2>{{ trade_offer.requested_listing.card.name }}</h2>
+            <div class="trade-review__requested">
+                {% if trade_offer.requested_listing.card.image_url %}
+                <img src="{{ trade_offer.requested_listing.card.image_url }}" alt="{{ trade_offer.requested_listing.card.name }}">
+                {% else %}
+                <div class="trade-offer-card__placeholder">{{ trade_offer.requested_listing.card.name|slice:":1"|upper }}</div>
+                {% endif %}
+            </div>
+            <p>{{ trade_offer.requested_listing.get_condition_display }} · ${{ trade_offer.requested_listing_price|money2 }}</p>
+        </div>
+    </section>
+
+    {% if trade_offer.message %}
+    <section class="trade-review__message">
+        <p class="eyebrow">Negotiation Note</p>
+        <p>{{ trade_offer.message }}</p>
+    </section>
+    {% endif %}
+
+    <div class="trade-review__actions">
+        <form method="post" action="{% url 'accept_trade_offer' trade_offer.id %}">
+            {% csrf_token %}
+            <button type="submit" class="button button--primary button--large">Accept Ritual</button>
+        </form>
+        <form method="post" action="{% url 'reject_trade_offer' trade_offer.id %}">
+            {% csrf_token %}
+            <button type="submit" class="button button--ghost button--large">Reject</button>
+        </form>
+    </div>
+</section>
+{% endblock %}

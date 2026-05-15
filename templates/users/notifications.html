@@ -1,47 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}Notifications{% endblock %}
+
 {% block content %}
-<h1>Mis Notificaciones</h1>
+<section class="notifications-page">
+    <div class="notifications-hero">
+        <div>
+            <p class="eyebrow">Archive Signals</p>
+            <h1>Notifications</h1>
+            <p>Alertas de matches, ofertas y actividad importante de tu coleccion.</p>
+        </div>
+        <div class="notifications-stats">
+            <article>
+                <span>Unread</span>
+                <strong>{{ unread_count }}</strong>
+            </article>
+            <article>
+                <span>Matches</span>
+                <strong>{{ match_count }}</strong>
+            </article>
+        </div>
+    </div>
 
-{% if notifications %}
-    <ul>
+    {% if notifications %}
+    <div class="notifications-list">
         {% for notification in notifications %}
-        <li>
-            {{ notification.message }} - {{ notification.created_at|date:"d M Y H:i" }}
-            {% if not notification.is_read %}
-                <strong>(No leído)</strong>
-            {% endif %}
-            {% if notification.type == 'action' %}
-                <form method="post" action="{% url 'accept_notification' %}" style="display: inline;">
-                    {% csrf_token %}
-                    <input type="hidden" name="notification_id" value="{{ notification.id }}">
-                    <button type="submit">Aceptar</button>
-                </form>
-                <form method="post" action="{% url 'reject_notification' %}" style="display: inline;">
-                    {% csrf_token %}
-                    <input type="hidden" name="notification_id" value="{{ notification.id }}">
-                    <button type="submit">Rechazar</button>
-                </form>
-            {% elif notification.type == 'exchange' %}
-                <form method="post" action="{% url 'accept_notification' %}" style="display: inline;">
-                    {% csrf_token %}
-                    <input type="hidden" name="notification_id" value="{{ notification.id }}">
-                    <button type="submit">Hacer Cambio</button>
-                </form>
-                <form method="post" action="{% url 'reject_notification' %}" style="display: inline;">
-                    {% csrf_token %}
-                    <input type="hidden" name="notification_id" value="{{ notification.id }}">
-                    <button type="submit">Rechazar</button>
-                </form>
-            {% endif %}
-        </li>
-        {% endfor %}
-    </ul>
-    <form method="post" action="{% url 'mark_all_resolved' %}">
-        {% csrf_token %}
-        <button type="submit">Marcar Todas como Resueltas</button>
-    </form>
-{% else %}
-    <p>No tienes notificaciones.</p>
-{% endif %}
+        <article class="notification-card notification-card--{{ notification.category|default:'system' }} {% if not notification.is_read %}notification-card--unread{% endif %}">
+            <div class="notification-card__icon">
+                {% if notification.category == 'match' %}
+                <i class="bi bi-stars"></i>
+                {% elif notification.category == 'offer' %}
+                <i class="bi bi-cash-coin"></i>
+                {% elif notification.category == 'trade' %}
+                <i class="bi bi-arrow-left-right"></i>
+                {% else %}
+                <i class="bi bi-bell"></i>
+                {% endif %}
+            </div>
 
-<a href="{% url 'card_list' %}">Volver a Mis Cartas</a>
+            <div class="notification-card__body">
+                <div class="notification-card__heading">
+                    <div>
+                        <span>{{ notification.category|default:"system"|title }}</span>
+                        <h2>{{ notification.title|default:"Archive update" }}</h2>
+                    </div>
+                    <time>{{ notification.created_at|date:"d M Y H:i" }}</time>
+                </div>
+                <p>{{ notification.message }}</p>
+                {% if not notification.is_read %}
+                <small>Unread</small>
+                {% endif %}
+            </div>
+
+            <div class="notification-card__actions">
+                {% if notification.action_url %}
+                <a href="{{ notification.action_url }}" class="button button--primary button--small">
+                    {% if notification.category == 'trade' %}Review{% elif notification.category == 'match' %}View match{% else %}Open{% endif %}
+                </a>
+                <form method="post" action="{% url 'resolve_notification' notification.id %}">
+                    {% csrf_token %}
+                    <button type="submit" class="button button--ghost button--small">Dismiss</button>
+                </form>
+                {% elif notification.type == 'action' %}
+                <form method="post" action="{% url 'accept_notification' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="notification_id" value="{{ notification.id }}">
+                    <button type="submit" class="button button--primary button--small">Review</button>
+                </form>
+                <form method="post" action="{% url 'reject_notification' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="notification_id" value="{{ notification.id }}">
+                    <button type="submit" class="button button--ghost button--small">Dismiss</button>
+                </form>
+                {% else %}
+                <form method="post" action="{% url 'resolve_notification' notification.id %}">
+                    {% csrf_token %}
+                    <button type="submit" class="button button--ghost button--small">Mark done</button>
+                </form>
+                {% endif %}
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+
+    <form method="post" action="{% url 'mark_all_resolved' %}" class="notifications-clear">
+        {% csrf_token %}
+        <button type="submit" class="button button--ghost">Mark all as resolved</button>
+    </form>
+    {% else %}
+    <div class="collection-empty">
+        <h3>No tienes notificaciones.</h3>
+        <p>Cuando aparezcan matches nuevos, ofertas o alertas de tu wishlist, las veras aqui.</p>
+    </div>
+    {% endif %}
+</section>
 {% endblock %}

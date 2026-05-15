@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+{% load money_filters %}
+
+{% block title %}Meeting Agreement{% endblock %}
+
+{% block content %}
+<section class="meeting-page">
+    <div class="meeting-hero">
+        <p class="eyebrow">Finalizacion de la transaccion</p>
+        <h1>Acuerdo de Encuentro</h1>
+        <p>Define el punto fisico, fecha y hora para entregar la carta acordada.</p>
+    </div>
+
+    <div class="meeting-layout">
+        <aside class="meeting-summary">
+            <section class="meeting-panel meeting-panel--accent">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">Resumen del pacto</p>
+                        <h2>{{ target_name|default:"Carta acordada" }}</h2>
+                    </div>
+                </div>
+
+                <div class="meeting-card-preview">
+                    {% if target_card.image_url %}
+                    <img src="{{ target_card.image_url }}" alt="{{ target_name }}">
+                    {% else %}
+                    <div class="collection-card__placeholder">{{ target_name|slice:":1"|upper }}</div>
+                    {% endif %}
+                    <div>
+                        <span>{{ target_card.rarity|default:"Listing" }}</span>
+                        <p>{{ target_card.set_name|default:"Unknown set" }}{% if target_card.collector_number %} · #{{ target_card.collector_number }}{% endif %}</p>
+                        <small>{{ seller.username }} entrega a {{ buyer.username }}</small>
+                    </div>
+                </div>
+
+                <dl class="meeting-totals">
+                    <div>
+                        <dt>Precio acordado</dt>
+                        <dd>${{ agreed_price|money2 }}</dd>
+                    </div>
+                    <div>
+                        <dt>Descuento en cartas</dt>
+                        <dd>${{ card_discount|money2 }}</dd>
+                    </div>
+                </dl>
+            </section>
+
+            <section class="meeting-panel">
+                <p class="eyebrow">Cartas en ofrenda</p>
+                <div class="meeting-offered-list">
+                    {% for item in offered_items %}
+                    <article>
+                        <div class="meeting-offered-list__icon"><i class="bi bi-box-seam"></i></div>
+                        <div>
+                            <strong>{{ item.offered_user_card.card.name }}</strong>
+                            <small>{{ item.offered_user_card.card.rarity|default:"Card" }} · {{ item.offered_user_card.get_condition_display }}</small>
+                        </div>
+                        <span>${{ item.valuation_price|money2 }}</span>
+                    </article>
+                    {% empty %}
+                    <p class="meeting-empty-copy">No hay cartas aplicadas como descuento para este acuerdo.</p>
+                    {% endfor %}
+                </div>
+            </section>
+        </aside>
+
+        <section class="meeting-main">
+            <section class="meeting-panel">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">Coordenadas del encuentro</p>
+                        <h2>Tiendas disponibles en {{ seller.city|default:"tu ciudad" }}</h2>
+                    </div>
+                </div>
+
+                <form method="post" class="meeting-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="save">
+
+                    <div class="meeting-store-grid">
+                        {% for store in store_options %}
+                        <label class="meeting-store-card{% if meeting.store_id == store.id %} meeting-store-card--selected{% endif %}">
+                            <input type="radio" name="store" value="{{ store.id }}" {% if meeting.store_id == store.id %}checked{% endif %} {% if not can_update_meeting %}disabled{% endif %}>
+                            <strong>{{ store.name }}</strong>
+                            <span>{{ store.city.name }}</span>
+                            {% if store.address %}
+                            <small>{{ store.address }}</small>
+                            {% endif %}
+                        </label>
+                        {% empty %}
+                        <div class="collection-empty">
+                            <h3>No hay tiendas activas.</h3>
+                            <p>Agrega tiendas desde Django admin para habilitar puntos de encuentro.</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="meeting-calendar-panel">
+                        <div>
+                            <label class="listing-label" for="meeting-date">Fecha de encuentro</label>
+                            <input id="meeting-date" type="date" name="meeting_date" value="{{ meeting.meeting_date|date:'Y-m-d' }}" {% if not can_update_meeting %}disabled{% endif %}>
+                        </div>
+                        <div>
+                            <label class="listing-label" for="meeting-time">Hora disponible</label>
+                            <input id="meeting-time" type="time" name="meeting_time" value="{{ meeting.meeting_time|time:'H:i' }}" {% if not can_update_meeting %}disabled{% endif %}>
+                        </div>
+                    </div>
+
+                    <label class="meeting-notes">
+                        <span>Notas del vendedor</span>
+                        <textarea name="seller_notes" rows="3" placeholder="Ej. Dejo las cartas en sobre con tu nombre." {% if not can_update_meeting %}disabled{% endif %}>{{ meeting.seller_notes|default:"" }}</textarea>
+                    </label>
+
+                    {% if can_update_meeting %}
+                    <div class="meeting-actions">
+                        <button type="submit" class="button button--primary button--large">Guardar encuentro</button>
+                    </div>
+                    {% elif read_only %}
+                    <p class="meeting-readonly-note">Acuerdo cerrado. Los detalles quedan bloqueados para revision.</p>
+                    {% endif %}
+                </form>
+            </section>
+
+            <section class="meeting-panel meeting-contract">
+                <div>
+                    <p class="eyebrow">Estado del contrato</p>
+                    <h2>{% if meeting.store and meeting.meeting_date %}Encuentro coordinado{% else %}Pendiente de sello final{% endif %}</h2>
+                    <small>Necesitas el contacto de esta persona?</small>
+                </div>
+
+                <details class="meeting-contact-reveal">
+                    <summary class="button button--ghost">Mostrar contacto</summary>
+                    <div class="meeting-contact-reveal__body">
+                        <span>Correo</span>
+                        <strong>{{ seller.email|default:"No configurado" }}</strong>
+                        <span>Telefono</span>
+                        <strong>{{ seller.phone_number|default:"No configurado" }}</strong>
+                    </div>
+                </details>
+            </section>
+
+            <section class="meeting-panel meeting-finish">
+                <div>
+                    <p class="eyebrow">Cierre de la compra</p>
+                    <h2>{% if is_completed %}Compra finalizada{% elif current_review %}Pendiente de la otra parte{% else %}Finalizar cuando se reunan{% endif %}</h2>
+                    <p>
+                        {% if current_review %}
+                        Ya marcaste este acuerdo como finalizado con {{ current_review.rating }}/5.
+                        {% elif is_completed %}
+                        La otra parte ya marco la compra como finalizada. Puedes dejar tu calificacion.
+                        {% else %}
+                        Cuando hagan la entrega y el pago en persona, marca la compra como finalizada.
+                        {% endif %}
+                    </p>
+                </div>
+
+                <div class="meeting-finish__actions">
+                    {% if counterpart_review %}
+                    <span class="meeting-review-chip">La otra parte ya califico</span>
+                    {% endif %}
+                    {% if not current_review %}
+                    <button type="button" class="button button--primary" id="openReviewModal">Marcar compra como finalizada</button>
+                    {% else %}
+                    <span class="meeting-review-chip meeting-review-chip--done">Tu calificacion quedo registrada</span>
+                    {% endif %}
+                </div>
+            </section>
+        </section>
+    </div>
+</section>
+
+{% if not current_review %}
+<div class="review-modal" id="reviewModal" hidden>
+    <div class="review-modal__backdrop" data-review-close></div>
+    <section class="review-modal__panel" role="dialog" aria-modal="true" aria-labelledby="reviewModalTitle">
+        <button type="button" class="review-modal__close" data-review-close aria-label="Cerrar">&times;</button>
+        <p class="eyebrow">Reputacion del acuerdo</p>
+        <h2 id="reviewModalTitle">Que tal fue la compra?</h2>
+        <p class="review-modal__copy">Tu calificacion ayuda a que otros coleccionistas sepan con quien estan tratando.</p>
+
+        <form method="post" class="review-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="complete">
+
+            <fieldset class="review-stars">
+                <legend>Calificacion</legend>
+                {% for value in "54321" %}
+                <label>
+                    <input type="radio" name="rating" value="{{ value }}" {% if value == "5" %}checked{% endif %}>
+                    <span>{{ value }} &#9733;</span>
+                </label>
+                {% endfor %}
+            </fieldset>
+
+            <fieldset class="review-tags">
+                <legend>Detalles rapidos</legend>
+                {% for value, label in review_tags %}
+                <label>
+                    <input type="checkbox" name="tags" value="{{ value }}">
+                    <span>{{ label }}</span>
+                </label>
+                {% endfor %}
+            </fieldset>
+
+            <label class="meeting-notes">
+                <span>Comentario opcional</span>
+                <textarea name="comment" rows="3" placeholder="Ej. Todo correcto, carta en buena condicion."></textarea>
+            </label>
+
+            <div class="meeting-actions">
+                <button type="button" class="button button--ghost" data-review-close>Cancelar</button>
+                <button type="submit" class="button button--primary">Finalizar y calificar</button>
+            </div>
+        </form>
+    </section>
+</div>
+
+<script>
+(() => {
+    const modal = document.getElementById('reviewModal');
+    const openButton = document.getElementById('openReviewModal');
+    if (!modal || !openButton) {
+        return;
+    }
+    const closeButtons = modal.querySelectorAll('[data-review-close]');
+    const closeModal = () => {
+        modal.hidden = true;
+        document.body.classList.remove('modal-open');
+    };
+    openButton.addEventListener('click', () => {
+        modal.hidden = false;
+        document.body.classList.add('modal-open');
+    });
+    closeButtons.forEach((button) => button.addEventListener('click', closeModal));
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && !modal.hidden) {
+            closeModal();
+        }
+    });
+})();
+</script>
+{% endif %}
+{% endblock %}

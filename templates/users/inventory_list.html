@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% load money_filters %}
+
+{% block title %}Inventory Manager{% endblock %}
+
+{% block content %}
+<section class="inventory-page">
+    <div class="inventory-hero">
+        <div>
+            <p class="eyebrow">Inventory Manager</p>
+            <h1>Gestionar cartas</h1>
+            <p>Una vista compacta para revisar, editar o retirar cartas de tu inventario.</p>
+        </div>
+        <div class="inventory-hero__actions">
+            <a href="{% url 'card_list' %}" class="button button--ghost">Volver a colección</a>
+            <a href="{% url 'register_cards' %}" class="button button--primary">Agregar carta</a>
+        </div>
+    </div>
+
+    <section class="inventory-stats">
+        <div>
+            <span>Registros</span>
+            <strong>{{ total_cards }}</strong>
+        </div>
+        <div>
+            <span>Unidades</span>
+            <strong>{{ total_units }}</strong>
+        </div>
+        <div>
+            <span>Valor estimado</span>
+            <strong>${{ total_value|money2 }}</strong>
+        </div>
+    </section>
+
+    <section class="builder-panel inventory-filters-panel">
+        <form method="get" class="inventory-filters">
+            <div>
+                <label class="listing-label" for="inventory-q">Nombre</label>
+                <input id="inventory-q" type="text" name="q" value="{{ active_filters.q }}" placeholder="Buscar carta">
+            </div>
+            <div>
+                <label class="listing-label" for="inventory-set">Set</label>
+                <select id="inventory-set" name="set">
+                    <option value="">Todos</option>
+                    {% for set_name in set_options %}
+                    <option value="{{ set_name }}" {% if active_filters.set == set_name %}selected{% endif %}>{{ set_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="listing-label" for="inventory-condition">Condición</label>
+                <select id="inventory-condition" name="condition">
+                    <option value="">Todas</option>
+                    {% for value, label in condition_options %}
+                    <option value="{{ value }}" {% if active_filters.condition == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="listing-label" for="inventory-intent">Intención</label>
+                <select id="inventory-intent" name="intent">
+                    <option value="">Todas</option>
+                    {% for value, label in intent_options %}
+                    <option value="{{ value }}" {% if active_filters.intent == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="listing-label" for="inventory-sort">Orden</label>
+                <select id="inventory-sort" name="sort">
+                    <option value="newest" {% if active_filters.sort == 'newest' %}selected{% endif %}>Más nuevas</option>
+                    <option value="oldest" {% if active_filters.sort == 'oldest' %}selected{% endif %}>Más antiguas</option>
+                    <option value="name" {% if active_filters.sort == 'name' %}selected{% endif %}>Nombre</option>
+                    <option value="price_desc" {% if active_filters.sort == 'price_desc' %}selected{% endif %}>Mayor precio</option>
+                    <option value="price_asc" {% if active_filters.sort == 'price_asc' %}selected{% endif %}>Menor precio</option>
+                    <option value="quantity_desc" {% if active_filters.sort == 'quantity_desc' %}selected{% endif %}>Más cantidad</option>
+                </select>
+            </div>
+            <div class="inventory-filters__actions">
+                <a href="{% url 'inventory_list' %}" class="button button--ghost">Limpiar</a>
+                <button type="submit" class="button button--primary">Filtrar</button>
+            </div>
+        </form>
+
+        <form id="inventory-bulk-form" method="post" class="inventory-bulk-actions">
+            {% csrf_token %}
+            <div>
+                <label class="listing-label" for="inventory-bulk-action">Accion masiva</label>
+                <select id="inventory-bulk-action" name="bulk_action">
+                    <option value="">Seleccionar</option>
+                    <option value="set_intent">Cambiar intencion</option>
+                    <option value="delete">Eliminar seleccionadas</option>
+                </select>
+            </div>
+            <div>
+                <label class="listing-label" for="inventory-bulk-intent">Nueva intencion</label>
+                <select id="inventory-bulk-intent" name="bulk_intent">
+                    <option value="">Sin cambio</option>
+                    {% for value, label in intent_options %}
+                    <option value="{{ value }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="button button--ghost">Aplicar a seleccionadas</button>
+        </form>
+    </section>
+
+    <section class="inventory-table-card">
+        <div class="inventory-table">
+            <div class="inventory-table__row inventory-table__row--head">
+                <span></span>
+                <span>Carta</span>
+                <span>Set</span>
+                <span>Condición</span>
+                <span>Cantidad</span>
+                <span>Intención</span>
+                <span>Precio</span>
+                <span>Acciones</span>
+            </div>
+
+            {% for user_card in inventory_cards %}
+            <article class="inventory-table__row">
+                <label class="inventory-row-select" aria-label="Seleccionar {{ user_card.card.name }}">
+                    <input type="checkbox" name="selected_cards" value="{{ user_card.id }}" form="inventory-bulk-form">
+                </label>
+                <div class="inventory-card-name">
+                    {% if user_card.card.image_url %}
+                    <img src="{{ user_card.card.image_url }}" alt="{{ user_card.card.name }}">
+                    {% else %}
+                    <div class="inventory-card-name__placeholder">{{ user_card.card.name|slice:":1"|upper }}</div>
+                    {% endif %}
+                    <div>
+                        <strong>{{ user_card.card.name }}</strong>
+                        {% if user_card.card.collector_number %}
+                        <small>#{{ user_card.card.collector_number }}</small>
+                        {% endif %}
+                    </div>
+                </div>
+                <span class="inventory-muted">{{ user_card.card.set_name|default:"Unknown set" }}</span>
+                <span>{{ user_card.get_condition_display }}</span>
+                <span>{{ user_card.quantity_owned }}</span>
+                <span class="inventory-intent">{{ user_card.get_listing_intent_display }}</span>
+                <strong class="inventory-price">${{ user_card.asking_price|default:user_card.card.price|money2 }}</strong>
+                <div class="inventory-actions">
+                    <a href="{% url 'edit_user_card' user_card.id %}" class="button button--ghost button--small">Editar</a>
+                    <form method="post" action="{% url 'edit_user_card' user_card.id %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="delete">
+                        <button type="submit" class="button button--ghost button--small">Eliminar</button>
+                    </form>
+                </div>
+            </article>
+            {% empty %}
+            <div class="collection-empty">
+                <h3>No hay cartas para mostrar.</h3>
+                <p>Ajusta los filtros o agrega cartas a tu inventario.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    {% if inventory_page.paginator.num_pages > 1 %}
+    <nav class="pagination-bar" aria-label="Paginacion de inventario">
+        <div class="pagination-bar__summary">
+            Mostrando {{ inventory_page.start_index }}-{{ inventory_page.end_index }} de {{ inventory_page.paginator.count }}
+        </div>
+        <div class="pagination-bar__controls">
+            {% if inventory_page.has_previous %}
+            <a href="?{{ page_prefix }}page={{ inventory_page.previous_page_number }}" class="button button--ghost button--small">Anterior</a>
+            {% endif %}
+            <span>Pagina {{ inventory_page.number }} de {{ inventory_page.paginator.num_pages }}</span>
+            {% if inventory_page.has_next %}
+            <a href="?{{ page_prefix }}page={{ inventory_page.next_page_number }}" class="button button--primary button--small">Siguiente</a>
+            {% endif %}
+        </div>
+    </nav>
+    {% endif %}
+</section>
+{% endblock %}

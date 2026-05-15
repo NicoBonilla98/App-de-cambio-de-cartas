@@ -1,56 +1,200 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
+{% load money_filters %}
+
+{% block title %}My Collection{% endblock %}
 
 {% block content %}
-<h1>Mis Cartas</h1>
+<section class="collection-page">
+    <div class="collection-hero">
+        <div class="collection-hero__profile">
+            <div class="collection-avatar">{{ user.username|slice:":1"|upper }}</div>
+            <div>
+                <p class="eyebrow">Collection Archive</p>
+                <h1>{{ user.username }}'s Grimoire</h1>
+                <p class="collection-hero__copy">Tus cartas mas recientes, separadas entre lo que ya tienes y lo que sigues buscando.</p>
+            </div>
+        </div>
+        <div class="collection-stat">
+            <span>Collection value</span>
+            <strong>${{ total_collection_value|money2 }}</strong>
+        </div>
+        <div class="collection-stat">
+            <span>Owned cards</span>
+            <strong>{{ total_owned_cards }}</strong>
+        </div>
+        <div class="collection-stat">
+            <span>Wanted cards</span>
+            <strong>{{ total_wanted_cards }}</strong>
+        </div>
+    </div>
 
-<h2>Cartas Poseídas</h2>
-<ul>
-    {% for card in owned_cards %}
-    <li>
-        {{ card.card.name }} - Precio: ${{ card.card.price }} - Cantidad: {{ card.quantity_owned }}
-        <form method="post" action="{% url 'edit_card_quantity' card.card.id %}">
-            {% csrf_token %}
-            <input type="number" name="edit_card_quantity" value="{{ card.quantity_owned }}" min="1">
-            <button type="submit">Actualizar</button>
-        </form>
-        <a href="{% url 'delete_card' card.card.id %}">Eliminar</a>
-    </li>
-    {% endfor %}
-</ul>
+    <div class="collection-shell">
+        <div class="collection-main">
+            <section class="builder-panel">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">Collection Filters</p>
+                        <h2>Refine your archive</h2>
+                    </div>
+                </div>
 
-<h3>Valor Total de la Colección</h3>
-<p>
-    ${{ total_collection_value }}
-</p>
+                <form method="get" class="collection-filters">
+                    <div class="collection-filters__grid">
+                        <div>
+                            <label class="listing-label" for="collection-q">Card name</label>
+                            <input id="collection-q" type="text" name="q" value="{{ active_filters.q }}" placeholder="Search by name">
+                        </div>
+                        <div>
+                            <label class="listing-label" for="collection-set">Set</label>
+                            <select id="collection-set" name="set">
+                                <option value="">All sets</option>
+                                {% for set_name in set_options %}
+                                <option value="{{ set_name }}" {% if active_filters.set == set_name %}selected{% endif %}>{{ set_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="listing-label" for="collection-rarity">Rarity</label>
+                            <select id="collection-rarity" name="rarity">
+                                <option value="">All rarities</option>
+                                {% for rarity in rarity_options %}
+                                <option value="{{ rarity }}" {% if active_filters.rarity == rarity %}selected{% endif %}>{{ rarity }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="listing-label" for="collection-sort">Sort</label>
+                            <select id="collection-sort" name="sort">
+                                <option value="newest" {% if active_filters.sort == 'newest' %}selected{% endif %}>Newest first</option>
+                                <option value="oldest" {% if active_filters.sort == 'oldest' %}selected{% endif %}>Oldest first</option>
+                                <option value="price_desc" {% if active_filters.sort == 'price_desc' %}selected{% endif %}>Price high to low</option>
+                                <option value="price_asc" {% if active_filters.sort == 'price_asc' %}selected{% endif %}>Price low to high</option>
+                            </select>
+                        </div>
+                    </div>
 
-<h2>Cartas Deseadas</h2>
-<ul>
-    {% for card in desired_cards %}
-    <li>
-        {{ card.card.name }} - Precio: ${{ card.card.price }} - Cantidad Requerida: {{ card.quantity_required }}
-        <form method="post" action="{% url 'edit_card_quantity' card.card.id %}">
-            {% csrf_token %}
-            <input type="number" name="edit_card_quantity" value="{{ card.quantity_required }}" min="1">
-            <button type="submit">Actualizar</button>
-        </form>
-        <a href="{% url 'search_card_matches' %}?card_name={{ card.card.name }}">Ver quién tiene esta carta</a>
-        <form method="post" action="{% url 'make_purchase_offer' %}">
-            {% csrf_token %}
-            <input type="hidden" name="card_name" value="{{ card.card.name }}">
-            <input type="hidden" name="owner_id" value="{{ card.user.id }}">
-            <button type="submit">Hacer Oferta</button>
-        </form>
-    </li>
-    {% endfor %}
-</ul>
+                    <div class="builder-actions">
+                        <a href="{% url 'card_list' %}" class="button button--ghost">Clear filters</a>
+                        <button type="submit" class="button button--primary">Apply filters</button>
+                    </div>
+                </form>
+            </section>
 
-<form method="get" action="{% url 'search_card' %}">
-    <input type="text" name="card_name" placeholder="Buscar carta">
-    <button type="submit">Buscar</button>
-</form>
+            <section class="collection-section">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">Owned Archive</p>
+                        <h2>Latest cards you have</h2>
+                    </div>
+                </div>
+                <div class="collection-section__actions">
+                    <a href="{% url 'inventory_list' %}" class="button button--primary">Gestionar inventario</a>
+                </div>
 
-<div class="builder-actions">
-    <a href="{% url 'register_cards' %}" class="button button--primary">Registrar Nueva Carta</a>
-    <a href="{% url 'upload_file' %}" class="button button--ghost">Bulk Import CSV</a>
-</div>
+                <div class="collection-grid">
+                    {% for user_card in owned_cards %}
+                    <article class="collection-card">
+                        <div class="collection-card__art">
+                            {% if user_card.card.image_url %}
+                            <img src="{{ user_card.card.image_url }}" alt="{{ user_card.card.name }}">
+                            {% else %}
+                            <div class="collection-card__placeholder">{{ user_card.card.name|slice:":1"|upper }}</div>
+                            {% endif %}
+                            <span class="collection-card__badge">Owned</span>
+                        </div>
+                        <div class="collection-card__body">
+                            <h3>{{ user_card.card.name }}</h3>
+                            <p>{{ user_card.card.set_name|default:"Unknown set" }}{% if user_card.card.rarity %} · {{ user_card.card.rarity }}{% endif %}</p>
+                            <div class="collection-card__meta">
+                                <span>Qty {{ user_card.quantity_owned }}</span>
+                                <span>{{ user_card.get_condition_display }}</span>
+                            </div>
+                            <div class="collection-card__price">
+                                <strong>${{ user_card.asking_price|default:user_card.card.price|money2 }}</strong>
+                                <span>{{ user_card.get_listing_intent_display }}</span>
+                            </div>
+                            <div class="builder-actions">
+                                <a href="{% url 'edit_user_card' user_card.id %}" class="button button--ghost button--small">Edit card</a>
+                            </div>
+                        </div>
+                    </article>
+                    {% empty %}
+                    <div class="collection-empty">
+                        <h3>No owned cards match the current filters.</h3>
+                        <p>Prueba otro set, otra rareza o carga nuevas cartas a tu colección.</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+
+            <section class="collection-section">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">Wanted Archive</p>
+                        <h2>Latest cards you are seeking</h2>
+                    </div>
+                </div>
+                <div class="collection-section__actions">
+                    <a href="{% url 'wanted_inventory_list' %}" class="button button--primary">Gestionar cartas buscadas</a>
+                </div>
+
+                <div class="collection-grid">
+                    {% for user_card in desired_cards %}
+                    <article class="collection-card collection-card--wanted">
+                        <div class="collection-card__art">
+                            {% if user_card.card.image_url %}
+                            <img src="{{ user_card.card.image_url }}" alt="{{ user_card.card.name }}">
+                            {% else %}
+                            <div class="collection-card__placeholder">{{ user_card.card.name|slice:":1"|upper }}</div>
+                            {% endif %}
+                            <span class="collection-card__badge collection-card__badge--wanted">Wanted</span>
+                        </div>
+                        <div class="collection-card__body">
+                            <h3>{{ user_card.card.name }}</h3>
+                            <p>{{ user_card.card.set_name|default:"Unknown set" }}{% if user_card.card.rarity %} · {{ user_card.card.rarity }}{% endif %}</p>
+                            <div class="collection-card__meta">
+                                <span>Need {{ user_card.quantity_required }}</span>
+                                <span>{{ user_card.get_desired_match_mode_display }}</span>
+                            </div>
+                            <form method="post" action="{% url 'update_desired_match_mode' user_card.id %}" class="collection-card__match-mode">
+                                {% csrf_token %}
+                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                <select name="desired_match_mode" onchange="this.form.submit()">
+                                    <option value="exact_printing" {% if user_card.desired_match_mode == 'exact_printing' %}selected{% endif %}>Solo esta version</option>
+                                    <option value="any_printing" {% if user_card.desired_match_mode == 'any_printing' %}selected{% endif %}>Cualquier version</option>
+                                </select>
+                            </form>
+                            <div class="builder-actions">
+                                <a href="{% url 'search_card_matches' %}?desired_id={{ user_card.id }}" class="button button--ghost button--small">Find matches</a>
+                                <a href="{% url 'edit_user_card' user_card.id %}" class="button button--ghost button--small">Edit card</a>
+                            </div>
+                        </div>
+                    </article>
+                    {% empty %}
+                    <div class="collection-empty">
+                        <h3>No wanted cards match the current filters.</h3>
+                        <p>Agrega cartas deseadas para empezar a detectar oportunidades de cambio.</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+        </div>
+
+        <aside class="collection-sidebar">
+            <section class="builder-panel">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">Actions</p>
+                        <h2>Grimoire actions</h2>
+                    </div>
+                </div>
+                <div class="collection-sidebar__actions">
+                    <a href="{% url 'register_cards' %}" class="button button--primary">List a new card</a>
+                    <a href="{% url 'upload_file' %}" class="button button--ghost">Bulk import</a>
+                    <a href="{% url 'pending_transactions' %}" class="button button--ghost">Pending trades</a>
+                </div>
+            </section>
+        </aside>
+    </div>
+</section>
 {% endblock %}

@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+{% load money_filters %}
+
+{% block title %}Trade Hub | {{ target_listing.card.name }}{% endblock %}
+
+{% block content %}
+<section class="trade-hub">
+    <aside class="trade-hub__sidebar">
+        <div class="trade-hub__sidebar-intro">
+            <h2>The Trade Hub</h2>
+            <p>Build a mixed offer with cards from your collection and a smaller cash finish.</p>
+        </div>
+
+        <div class="trade-hub__sidebar-block">
+            <span class="trade-hub__sidebar-label">Match status</span>
+            <strong>{{ matched_count }} matches ready</strong>
+            <small>{{ unavailable_count }} wishlist cards still unmatched</small>
+        </div>
+
+        <div class="trade-hub__sidebar-block">
+            <span class="trade-hub__sidebar-label">Target collector</span>
+            <strong>{{ target_listing.user.username }}</strong>
+            <small>{{ target_listing.user.city|default:"Location unavailable" }}</small>
+        </div>
+
+        <div class="trade-hub__sidebar-actions">
+            <button type="button" class="button button--primary" id="match-all-button">Match my collection</button>
+            <a href="{% url 'marketplace_card_detail' target_listing.card.id %}" class="button button--ghost">Back to offers</a>
+        </div>
+    </aside>
+
+    <form method="post" class="trade-hub__main">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="seal">
+
+        <section class="trade-hub__board">
+            <div class="trade-column">
+                <div class="trade-column__header">
+                    <div>
+                        <p class="eyebrow">Your Offering</p>
+                        <h1>Cards from your collection</h1>
+                    </div>
+                    <div class="trade-column__value">
+                        <span>Market value</span>
+                        <strong id="offer-total">${{ offered_value|money2 }}</strong>
+                    </div>
+                </div>
+
+                <div class="trade-offer-grid">
+                    {% for row in candidate_rows %}
+                    <label class="trade-offer-card{% if row.offered_user_card.id|stringformat:'s' in selected_ids %} trade-offer-card--selected{% endif %}">
+                        <input
+                            type="checkbox"
+                            name="selected_offer_cards"
+                            value="{{ row.offered_user_card.id }}"
+                            data-value="{{ row.value }}"
+                            {% if row.offered_user_card.id|stringformat:'s' in selected_ids %}checked{% endif %}
+                        >
+                        <div class="trade-offer-card__art">
+                            {% if row.offered_user_card.card.image_url %}
+                            <img src="{{ row.offered_user_card.card.image_url }}" alt="{{ row.offered_user_card.card.name }}">
+                            {% else %}
+                            <div class="trade-offer-card__placeholder">{{ row.offered_user_card.card.name|slice:":1"|upper }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="trade-offer-card__body">
+                            <h3>{{ row.offered_user_card.card.name }}</h3>
+                            <p>{{ row.offered_user_card.card.set_name|default:"Unknown set" }}</p>
+                            <div class="trade-offer-card__meta">
+                                <span>{{ row.offered_user_card.get_condition_display }}</span>
+                                <span>${{ row.value|money2 }}</span>
+                            </div>
+                            <small>{{ row.offered_user_card.quantity_owned }} available in your collection</small>
+                        </div>
+                    </label>
+                    {% empty %}
+                    <div class="collection-empty">
+                        <h3>No direct wishlist matches yet.</h3>
+                        <p>Esta persona quiere cartas que hoy no tienes registradas en tu coleccion.</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="trade-balance">
+                <div class="trade-balance__icon">=</div>
+                <span>Market spread</span>
+                <strong id="spread-total">${{ market_spread|money2 }}</strong>
+            </div>
+
+            <div class="trade-column">
+                <div class="trade-column__header">
+                    <div>
+                        <p class="eyebrow">Their Request</p>
+                        <h2>{{ target_listing.card.name }}</h2>
+                    </div>
+                    <div class="trade-column__value">
+                        <span>Market value</span>
+                        <strong id="requested-total">${{ requested_value|money2 }}</strong>
+                    </div>
+                </div>
+
+                <section class="trade-panel">
+                    <article class="trade-request-card">
+                        <div class="trade-request-card__art">
+                            {% if target_listing.card.image_url %}
+                            <img src="{{ target_listing.card.image_url }}" alt="{{ target_listing.card.name }}">
+                            {% else %}
+                            <div class="trade-offer-card__placeholder">{{ target_listing.card.name|slice:":1"|upper }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="trade-request-card__body">
+                            <h3>{{ target_listing.card.name }}</h3>
+                            <p>{{ target_listing.card.set_name|default:"Unknown set" }}{% if target_listing.card.collector_number %} · #{{ target_listing.card.collector_number }}{% endif %}</p>
+                            <div class="trade-request-card__meta">
+                                <span>{{ target_listing.get_condition_display }}</span>
+                                <span>{{ target_listing.get_listing_intent_display }}</span>
+                            </div>
+                            <strong>${{ requested_value|money2 }}</strong>
+                        </div>
+                    </article>
+                </section>
+
+            </div>
+        </section>
+
+        <section class="trade-panel trade-wishlist trade-wishlist--separate">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">The Archivist's Wishlist</p>
+                    <h2>Cards this collector is actively seeking</h2>
+                </div>
+            </div>
+
+            <div class="trade-wishlist__list">
+                {% for row in candidate_rows %}
+                <article class="trade-wishlist__item{% if row.offered_user_card.id|stringformat:'s' in selected_ids %} trade-wishlist__item--matched{% endif %}">
+                    <div>
+                        <strong>{{ row.desired_user_card.card.name }}</strong>
+                        <small>{{ row.desired_user_card.card.set_name|default:"Unknown set" }}</small>
+                    </div>
+                    <span>${{ row.value|money2 }}</span>
+                </article>
+                {% empty %}
+                <div class="collection-empty">
+                    <h3>No wishlist intersections found.</h3>
+                    <p>Necesitaras cubrir esta operacion solo con dinero o registrar mas cartas.</p>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="trade-negotiation">
+            <div class="trade-negotiation__copy">
+                <p class="eyebrow">Negotiation Note</p>
+                <h2>Explain the logic behind your offer</h2>
+                <textarea name="message" rows="4" placeholder="I included the cards from your wishlist that I already have, so the remaining balance is lower."></textarea>
+            </div>
+            <div class="trade-settle">
+                <div class="trade-settle__summary">
+                    <div>
+                        <span>Requested card</span>
+                        <strong>${{ requested_value|money2 }}</strong>
+                    </div>
+                    <div>
+                        <span>Wishlist cards applied</span>
+                        <strong id="summary-offered">${{ offered_value|money2 }}</strong>
+                    </div>
+                    <div>
+                        <span>Cash still due</span>
+                        <strong id="summary-cash">${{ cash_due|money2 }}</strong>
+                    </div>
+                </div>
+                <button type="submit" class="button button--primary button--large">Seal the deal</button>
+            </div>
+        </section>
+    </form>
+</section>
+
+<script>
+    (function () {
+        const checkboxes = Array.from(document.querySelectorAll('input[name="selected_offer_cards"]'));
+        const matchAllButton = document.getElementById('match-all-button');
+        const requestedValue = parseFloat('{{ requested_value|default:"0" }}') || 0;
+        const offerTotal = document.getElementById('offer-total');
+        const spreadTotal = document.getElementById('spread-total');
+        const summaryOffered = document.getElementById('summary-offered');
+        const summaryCash = document.getElementById('summary-cash');
+
+        function syncSelectedState() {
+            let offered = 0;
+            checkboxes.forEach((checkbox) => {
+                const card = checkbox.closest('.trade-offer-card');
+                if (checkbox.checked) {
+                    offered += parseFloat(checkbox.dataset.value || '0');
+                    card.classList.add('trade-offer-card--selected');
+                } else {
+                    card.classList.remove('trade-offer-card--selected');
+                }
+            });
+            const cashDue = Math.max(requestedValue - offered, 0);
+            const spread = requestedValue - offered;
+            offerTotal.textContent = `$${offered.toFixed(2)}`;
+            spreadTotal.textContent = `$${spread.toFixed(2)}`;
+            summaryOffered.textContent = `$${offered.toFixed(2)}`;
+            summaryCash.textContent = `$${cashDue.toFixed(2)}`;
+        }
+
+        checkboxes.forEach((checkbox) => checkbox.addEventListener('change', syncSelectedState));
+        if (matchAllButton) {
+            matchAllButton.addEventListener('click', function () {
+                checkboxes.forEach((checkbox) => {
+                    checkbox.checked = true;
+                });
+                syncSelectedState();
+            });
+        }
+        syncSelectedState();
+    })();
+</script>
+{% endblock %}

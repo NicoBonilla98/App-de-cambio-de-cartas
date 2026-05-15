@@ -1,14 +1,130 @@
 {% extends "base.html" %}
+{% load money_filters %}
+
+{% block title %}Profile{% endblock %}
 
 {% block content %}
-<h2>Mi Perfil</h2>
-<p><strong>Nombre de usuario:</strong> {{ user.username }}</p>
-<p><strong>Correo electrónico:</strong> {{ user.email }}</p>
-<form method="post">
-    {% csrf_token %}
-    {{ form.as_p }}
-    <button type="submit">Guardar Cambios</button>
-</form>
-<a href="{% url 'edit_profile' %}"><button type="button">Editar Perfil</button></a>
-<a href="{% url 'card_list' %}">Volver a Mis Cartas</a>
+<section class="profile-page">
+    <section class="profile-hero">
+        <div class="profile-portrait">
+            <div class="profile-portrait__frame">{{ user.username|slice:":1"|upper }}</div>
+            <span>Level {{ owned_count|default:0 }}</span>
+        </div>
+
+        <div class="profile-identity">
+            <p class="eyebrow">The Great Archivist</p>
+            <h1>{{ user.username }}</h1>
+            <div class="profile-fields">
+                <article>
+                    <i class="bi bi-shop"></i>
+                    <span>Preferred store</span>
+                    <strong>{{ user.get_preferred_store_display|default:"Not selected" }}</strong>
+                </article>
+                <article>
+                    <i class="bi bi-geo-alt"></i>
+                    <span>City sanctum</span>
+                    <strong>{{ user.city|default:"Not selected" }}</strong>
+                </article>
+                <article>
+                    <i class="bi bi-arrow-left-right"></i>
+                    <span>Preferred transfer</span>
+                    <strong>{{ user.get_transaction_preference_display|default:"Not selected" }}</strong>
+                </article>
+                <article>
+                    <i class="bi bi-telephone"></i>
+                    <span>Secure comms</span>
+                    <strong>{{ user.phone_number|default:"Not set" }}</strong>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <section class="profile-dashboard">
+        <article class="profile-stat profile-stat--gold">
+            <span>Collection valuation</span>
+            <strong>${{ total_collection_value|money2 }}</strong>
+            <small>{{ owned_count }} cards archived</small>
+        </article>
+        <article class="profile-stat profile-stat--cyan">
+            <span>Reputation score</span>
+            <strong>{% if reputation_total %}{{ reputation_average|floatformat:1 }}/5{% else %}Active Collector{% endif %}</strong>
+            <small>{% if reputation_total %}{{ reputation_total }} completed review{{ reputation_total|pluralize }}{% else %}Profile ready for local trades{% endif %}</small>
+        </article>
+        <article class="profile-stat profile-stat--ember">
+            <span>Active engagements</span>
+            <strong>{{ active_engagements }} Contracts</strong>
+            <small>Pending sales and trade offers</small>
+        </article>
+    </section>
+
+    <section class="profile-shell">
+        <form method="post" class="profile-form">
+            {% csrf_token %}
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">Profile Settings</p>
+                    <h2>Edit your archive identity</h2>
+                </div>
+            </div>
+
+            <div class="profile-form__grid">
+                {% for field in form %}
+                <div class="profile-form__field">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.errors %}
+                    <small>{{ field.errors|striptags }}</small>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="builder-actions">
+                <a href="{% url 'card_list' %}" class="button button--ghost">Back to collection</a>
+                <button type="submit" class="button button--primary">Save profile</button>
+            </div>
+        </form>
+
+        <aside class="profile-side-panel">
+            <p class="eyebrow">Account</p>
+            <h2>{{ user.email|default:"No email registered" }}</h2>
+            <p>Estos datos ayudan a otros coleccionistas a saber donde prefieres cerrar ventas e intercambios.</p>
+        </aside>
+    </section>
+
+    <section class="profile-activity">
+        <div class="section-heading">
+            <div>
+                <p class="eyebrow">Active Transactions</p>
+                <h2>Recent archive movement</h2>
+            </div>
+            <a href="{% url 'list_exchanges' %}" class="market-detail__back">Archive history</a>
+        </div>
+
+        <div class="profile-activity__grid">
+            {% for card in recent_cards %}
+            <article class="profile-activity-card">
+                <div class="profile-activity-card__art">
+                    {% if card.card.image_url %}
+                    <img src="{{ card.card.image_url }}" alt="{{ card.card.name }}">
+                    {% else %}
+                    <div class="collection-card__placeholder">{{ card.card.name|slice:":1"|upper }}</div>
+                    {% endif %}
+                    <span>{{ card.get_listing_intent_display }}</span>
+                </div>
+                <div class="profile-activity-card__body">
+                    <h3>{{ card.card.name }}</h3>
+                    <strong>${{ card.asking_price|default:card.card.price|money2 }}</strong>
+                    <small>{{ card.get_condition_display }}</small>
+                </div>
+            </article>
+            {% empty %}
+            <div class="collection-empty">
+                <h3>No recent cards yet.</h3>
+                <p>Cuando agregues cartas a tu coleccion apareceran aqui.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+</section>
 {% endblock %}

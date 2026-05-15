@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% load money_filters %}
+
+{% block title %}{{ listing.card.name }} | Buy{% endblock %}
+
+{% block content %}
+<section class="sale-detail">
+    <nav class="sale-detail__breadcrumbs">
+        <a href="{% url 'marketplace' %}">Marketplace</a>
+        <span>›</span>
+        <a href="{% url 'marketplace_card_detail' listing.card.id %}">{{ listing.card.set_name|default:"Archive" }}</a>
+        <span>›</span>
+        <strong>{{ listing.card.name }}</strong>
+    </nav>
+
+    <section class="sale-detail__hero">
+        <div class="sale-detail__gallery">
+            <div class="sale-detail__image-frame">
+                {% if listing.card.image_url %}
+                <img src="{{ listing.card.image_url }}" alt="{{ listing.card.name }}">
+                {% else %}
+                <div class="sale-detail__placeholder">{{ listing.card.name|slice:":1"|upper }}</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="sale-detail__summary">
+            <div class="sale-detail__title-row">
+                <div>
+                    <span class="sale-detail__rarity">{{ listing.card.rarity|default:"Listing" }}</span>
+                    <p class="sale-detail__meta">{{ listing.card.set_code|default:"SET" }}{% if listing.card.collector_number %} · #{{ listing.card.collector_number }}{% endif %}</p>
+                    <h1>{{ listing.card.name }}</h1>
+                </div>
+            </div>
+
+            <section class="sale-detail__oracle">
+                <p class="sale-detail__panel-label">Listing Details</p>
+                <p>{{ listing.card.description|default:"This seller has published the card on the archive. Use the live offers below to compare condition, quantity and current price." }}</p>
+            </section>
+
+            <section class="sale-detail__history">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">Sales Activity</p>
+                        <h2>Units sold on the platform</h2>
+                    </div>
+                    <strong class="sale-detail__history-total">{{ total_sales }} total sold</strong>
+                </div>
+                <div class="sale-history-chart">
+                    {% for bucket in history_buckets %}
+                    <div class="sale-history-chart__column">
+                        <div class="sale-history-chart__bar" style="height: {{ bucket.height }}px;">
+                            <span>{{ bucket.count }}</span>
+                        </div>
+                        <small>{{ bucket.label }}</small>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+
+            <section class="sale-detail__offers">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">Current Offers</p>
+                        <h2>Compare live sellers for this printing</h2>
+                    </div>
+                </div>
+
+                <div class="sale-offer-list">
+                    <article class="sale-offer-row sale-offer-row--featured">
+                        <div>
+                            <strong>{{ listing.user.username }}</strong>
+                            <small>{{ listing.get_condition_display }} · {{ listing.quantity_owned }} available</small>
+                        </div>
+                        <div class="sale-offer-row__price">
+                            <strong>${{ market_price|money2 }}</strong>
+                            <small>{{ listing.get_listing_intent_display }}</small>
+                        </div>
+                    </article>
+
+                    {% for offer in related_offers %}
+                    <article class="sale-offer-row">
+                        <div>
+                            <strong>{{ offer.user.username }}</strong>
+                            <small>{{ offer.get_condition_display }} · {{ offer.quantity_owned }} available</small>
+                        </div>
+                        <div class="sale-offer-row__price">
+                            <strong>${{ offer.asking_price|default:offer.card.price|money2 }}</strong>
+                            <small>{{ offer.get_listing_intent_display }}</small>
+                        </div>
+                    </article>
+                    {% empty %}
+                    <div class="collection-empty">
+                        <h3>No alternate offers yet.</h3>
+                        <p>Esta es por ahora la unica publicacion de venta visible para esta impresion.</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+        </div>
+
+        <aside class="sale-detail__purchase">
+            <div class="sale-detail__purchase-card">
+                <span class="sale-detail__panel-label">Market price</span>
+                <strong class="sale-detail__purchase-price">${{ market_price|money2 }}</strong>
+                <small>{{ available_units }} unit{{ available_units|pluralize }} currently listed by {{ listing.user.username }}</small>
+
+                <form method="post" action="{% url 'make_purchase_offer' %}" class="sale-detail__purchase-actions">
+                    {% csrf_token %}
+                    <input type="hidden" name="card_name" value="{{ listing.card.name }}">
+                    <input type="hidden" name="owner_id" value="{{ listing.user.id }}">
+                    <input type="hidden" name="listing_id" value="{{ listing.id }}">
+                    <input type="hidden" name="purchase_mode" value="buy_now">
+                    <input type="hidden" name="next" value="{{ request.path }}">
+                    <button type="submit" class="button button--primary button--large">Buy now</button>
+                </form>
+
+                {% if listing.listing_intent == 'sell_trade' %}
+                <form method="post" action="{% url 'make_purchase_offer' %}" class="sale-detail__purchase-actions">
+                    {% csrf_token %}
+                    <input type="hidden" name="card_name" value="{{ listing.card.name }}">
+                    <input type="hidden" name="owner_id" value="{{ listing.user.id }}">
+                    <input type="hidden" name="listing_id" value="{{ listing.id }}">
+                    <input type="hidden" name="purchase_mode" value="offer">
+                    <input type="hidden" name="next" value="{{ request.path }}">
+                    <label class="sale-detail__offer-field">
+                        <span>Your offer</span>
+                        <input type="number" name="offer_amount" min="{{ min_offer_amount_input }}" max="{{ max_offer_amount_input }}" step="0.01" value="{{ market_price_input }}" required>
+                    </label>
+                    <label class="sale-detail__offer-field">
+                        <span>Message</span>
+                        <textarea name="message" rows="3" placeholder="Optional note for the seller"></textarea>
+                    </label>
+                    <small>Allowed range: ${{ min_offer_amount|money2 }} - ${{ max_offer_amount|money2 }}</small>
+                    <button type="submit" class="button button--ghost button--large">Make offer</button>
+                </form>
+                {% endif %}
+
+                <div class="sale-detail__trust">
+                    <p>Authenticity guaranteed by Magic Exchange</p>
+                    <p>Fast tracked global shipping</p>
+                </div>
+            </div>
+        </aside>
+    </section>
+
+    <section class="sale-detail__related">
+        <div class="section-heading">
+            <div>
+                <p class="eyebrow">Related Artifacts</p>
+                <h2>More cards from the same archive</h2>
+            </div>
+        </div>
+
+        <div class="sale-detail__related-grid">
+            {% for related_card in related_cards %}
+            <article class="sale-related-card">
+                <div class="sale-related-card__art">
+                    {% if related_card.image_url %}
+                    <img src="{{ related_card.image_url }}" alt="{{ related_card.name }}">
+                    {% else %}
+                    <div class="sale-detail__placeholder">{{ related_card.name|slice:":1"|upper }}</div>
+                    {% endif %}
+                </div>
+                <h3>{{ related_card.name }}</h3>
+                <span>${{ related_card.price|money2 }}</span>
+            </article>
+            {% empty %}
+            <div class="collection-empty">
+                <h3>No related artifacts yet.</h3>
+                <p>Cuando haya mas cartas del mismo set con imagen, apareceran aqui.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+</section>
+{% endblock %}

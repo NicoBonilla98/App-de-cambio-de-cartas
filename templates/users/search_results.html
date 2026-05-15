@@ -1,49 +1,108 @@
 {% extends "base.html" %}
+{% load money_filters %}
+
+{% block title %}Who Has {{ searched_card }}{% endblock %}
 
 {% block content %}
-<h1>Usuarios que poseen {{ searched_card }}</h1>
+<section class="match-page">
+    <section class="match-search-panel">
+        <form method="get" action="{% url 'search_card_matches' %}" class="match-search">
+            <div class="match-search__input">
+                <i class="bi bi-search"></i>
+                <input type="text" name="card_name" value="{{ searched_card }}" placeholder="Search a card">
+            </div>
+            <button type="submit" class="button button--primary">Discover</button>
+        </form>
+        <div class="match-search__recommended">
+            <span>Recommended:</span>
+            <a href="{% url 'search_card_matches' %}?card_name=Black Lotus">Black Lotus</a>
+            <a href="{% url 'search_card_matches' %}?card_name=Ancestral Recall">Ancestral Recall</a>
+            <a href="{% url 'search_card_matches' %}?card_name=Time Walk">Time Walk</a>
+        </div>
+    </section>
 
-{% if matching_cards %}
-    <ul>
-        {% for user_card in matching_cards %}
-            {% if user_card.user.transaction_preference != 'display_only' %}
-            <li>
-                {{ user_card.user.username }} - {{ user_card.user.city }}
-                {% if user_card.user.transaction_preference == 'sell_only' %}
-                    <form method="post" action="{% url 'make_purchase_offer' %}" style="display: inline;">
-                        {% csrf_token %}
-                        <input type="hidden" name="card_name" value="{{ searched_card }}">
-                        <input type="hidden" name="owner_id" value="{{ user_card.user.id }}">
-                        <button type="submit" class="btn btn-primary">Hacer oferta de compra</button>
-                    </form>
-                {% elif user_card.user.transaction_preference == 'trade_only' %}
-                    <form method="post" action="{% url 'send_notification' %}" style="display: inline;">
-                        {% csrf_token %}
-                        <input type="hidden" name="card_name" value="{{ searched_card }}">
-                        <input type="hidden" name="owner_id" value="{{ user_card.user.id }}">
-                        <button type="submit" class="btn btn-secondary">Proponer Cambio</button>
-                    </form>
-                {% elif user_card.user.transaction_preference == 'trade_and_sell' %}
-                    <form method="post" action="{% url 'make_purchase_offer' %}" style="display: inline;">
-                        {% csrf_token %}
-                        <input type="hidden" name="card_name" value="{{ searched_card }}">
-                        <input type="hidden" name="owner_id" value="{{ user_card.user.id }}">
-                        <button type="submit" class="btn btn-primary">Hacer oferta de compra</button>
-                    </form>
-                    <form method="post" action="{% url 'send_notification' %}" style="display: inline;">
-                        {% csrf_token %}
-                        <input type="hidden" name="card_name" value="{{ searched_card }}">
-                        <input type="hidden" name="owner_id" value="{{ user_card.user.id }}">
-                        <button type="submit" class="btn btn-secondary">Proponer Cambio</button>
-                    </form>
-                {% endif %}
-            </li>
+    <section class="match-hero">
+        <div class="match-hero__art">
+            {% if desired_card and desired_card.card.image_url %}
+            <img src="{{ desired_card.card.image_url }}" alt="{{ searched_card }}">
+            {% else %}
+            <div class="match-hero__portal">{{ searched_card|default:"?"|slice:":1"|upper }}</div>
             {% endif %}
-        {% endfor %}
-    </ul>
-{% else %}
-    <p>No hay usuarios que posean esta carta.</p>
-{% endif %}
+        </div>
 
-<a href="{% url 'card_list' %}">Volver a Mis Cartas</a>
+        <div class="match-hero__content">
+            <p class="eyebrow">Archetype Identified</p>
+            <h1>{{ searched_card|default:"Unknown Card" }}</h1>
+            <div class="match-hero__stats">
+                <span><i class="bi bi-people-fill"></i> {{ holders_count }} Archive Holders</span>
+                <span><i class="bi bi-shop"></i> {{ marketplace_listings }} Marketplace Listings</span>
+                <span><i class="bi bi-arrow-left-right"></i> {{ trade_proposals }} Trade Paths</span>
+            </div>
+            <div class="match-hero__metrics">
+                <article>
+                    <span>Median Price</span>
+                    <strong>${{ median_price|money2 }}</strong>
+                </article>
+                <article>
+                    <span>Match Mode</span>
+                    <strong>{% if desired_card %}{{ desired_card.get_desired_match_mode_display }}{% else %}Exact name{% endif %}</strong>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <section class="match-holders">
+        <div class="section-heading">
+            <div>
+                <p class="eyebrow">Verified Cardholders</p>
+                <h2>Collectors currently holding this card</h2>
+            </div>
+            <a href="{% url 'card_list' %}" class="button button--ghost button--small">Back to collection</a>
+        </div>
+
+        <div class="match-holder-list">
+            {% for user_card in matching_cards %}
+            {% if user_card.user.transaction_preference != 'display_only' %}
+            <article class="match-holder-row">
+                <div class="match-holder-row__identity">
+                    <div class="match-holder-row__avatar">{{ user_card.user.username|slice:":1"|upper }}</div>
+                    <div>
+                        <h3>{{ user_card.user.username }}</h3>
+                        <p>{{ user_card.user.city }}{% if user_card.user.preferred_store %} · {{ user_card.user.get_preferred_store_display }}{% endif %}</p>
+                    </div>
+                </div>
+
+                <div class="match-holder-row__detail">
+                    <span>State</span>
+                    <strong>{{ user_card.get_listing_intent_display }}</strong>
+                </div>
+                <div class="match-holder-row__detail">
+                    <span>Quality</span>
+                    <strong>{{ user_card.get_condition_display }}</strong>
+                </div>
+                <div class="match-holder-row__detail">
+                    <span>Essence</span>
+                    <strong>${{ user_card.asking_price|default:user_card.card.price|money2 }}</strong>
+                </div>
+
+                <div class="match-holder-row__actions">
+                    {% if user_card.listing_intent == 'sell' or user_card.listing_intent == 'sell_trade' %}
+                    <a href="{% url 'sale_listing_detail' user_card.id %}" class="button button--primary button--small">Buy Now</a>
+                    {% endif %}
+                    {% if user_card.listing_intent == 'trade' or user_card.listing_intent == 'sell_trade' %}
+                    <a href="{% url 'initiate_trade' user_card.id %}" class="button button--ghost button--small">Propose Trade</a>
+                    {% endif %}
+                    <a href="{% url 'view_user_info' user_card.user.id %}" class="button button--ghost button--small">Details</a>
+                </div>
+            </article>
+            {% endif %}
+            {% empty %}
+            <div class="collection-empty">
+                <h3>No verified cardholders yet.</h3>
+                <p>No hay usuarios que posean esta carta con la regla de match actual.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+</section>
 {% endblock %}

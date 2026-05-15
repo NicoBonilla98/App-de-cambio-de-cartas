@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load money_filters %}
 
 {% block content %}
 <h1>Cartas de {{ selected_user.username }}</h1>
@@ -27,7 +28,7 @@
         {% for card in user_cards %}
         <li>
             <input type="checkbox" name="selected_cards" value="{{ card.card.name }}" data-price="{{ card.card.price }}" onchange="calculateTotal()">
-            {{ card.card.name }} - Precio: ${{ card.card.price }} - Cantidad: {{ card.quantity_owned }}
+            {{ card.card.name }} - Precio: ${{ card.card.price|money2 }} - Cantidad: {{ card.quantity_owned }}
         </li>
         {% endfor %}
     </ul>

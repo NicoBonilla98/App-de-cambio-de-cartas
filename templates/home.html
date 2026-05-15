@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load money_filters %}
 
 {% block body_class %}landing-page{% endblock %}
 
@@ -41,41 +42,65 @@
 <section class="landing-section">
     <div class="section-heading">
         <div>
-            <p class="eyebrow">Featured Inventory</p>
-            <h2>High-value cards moving through the exchange.</h2>
+            <p class="eyebrow">Community Favorites</p>
+            <h2>Popular cards by completed sales and trades.</h2>
         </div>
-        <a href="{% if user.is_authenticated %}{% url 'card_list' %}{% else %}{% url 'register' %}{% endif %}" class="section-link">
-            View collection <i class="bi bi-arrow-right"></i>
+        <a href="{% url 'marketplace' %}" class="section-link">
+            View marketplace <i class="bi bi-arrow-right"></i>
         </a>
     </div>
 
     <div class="featured-grid">
-        {% for card in featured_cards %}
+        {% for item in popular_cards %}
         <article class="featured-card">
-            <div class="featured-card__art featured-card__art--{{ forloop.counter }}">
+            <div class="featured-card__art featured-card__art--{{ forloop.counter }}{% if item.card.image_url %} featured-card__art--image{% endif %}">
+                {% if item.card.image_url %}
+                <img src="{{ item.card.image_url }}" alt="{{ item.card.name }}">
+                {% endif %}
                 <span class="featured-card__badge">
-                    {% if card.price and card.price > 100 %}
-                    Premium
+                    {% if item.is_fallback %}
+                    Listed
+                    {% elif item.sold_count and item.traded_count %}
+                    Sold / Traded
+                    {% elif item.sold_count %}
+                    Top Sale
                     {% else %}
-                    Market
+                    Top Trade
                     {% endif %}
                 </span>
             </div>
             <div class="featured-card__body">
                 <div class="featured-card__row">
-                    <h3>{{ card.name }}</h3>
-                    <strong>${{ card.price }}</strong>
+                    <h3>{{ item.card.name }}</h3>
+                    <strong>
+                        {% if item.is_fallback %}
+                        {{ item.activity_count }} listed
+                        {% else %}
+                        {{ item.activity_count }} moves
+                        {% endif %}
+                    </strong>
                 </div>
-                <p>{{ card.description|default:"Carta disponible dentro del ecosistema de intercambio."|truncatechars:110 }}</p>
+                <p>
+                    {% if item.is_fallback %}
+                    Todavia no hay cierres registrados para esta carta, pero concentra actividad en el marketplace.
+                    {% else %}
+                    {{ item.sold_count }} venta{{ item.sold_count|pluralize }} completada{{ item.sold_count|pluralize }} &middot; {{ item.traded_count }} cambio{{ item.traded_count|pluralize }} completado{{ item.traded_count|pluralize }}.
+                    {% endif %}
+                </p>
+                <div class="featured-card__metrics">
+                    <span>{{ item.card.set_name|default:"Unknown set" }}</span>
+                    <span>${{ item.card.price|money2 }} ref.</span>
+                </div>
+                <a href="{% url 'marketplace_card_detail' item.card.id %}" class="button button--ghost button--small">View offers</a>
             </div>
         </article>
         {% empty %}
         <article class="featured-card featured-card--empty">
             <div class="featured-card__body">
-                <h3>Your catalog starts here</h3>
-                <p>Cuando agregues cartas al sistema, esta seccion mostrara las piezas mas destacadas del marketplace.</p>
-                <a href="{% if user.is_authenticated %}{% url 'create_card' %}{% else %}{% url 'register' %}{% endif %}" class="button button--primary">
-                    {% if user.is_authenticated %}Create First Card{% else %}Join Marketplace{% endif %}
+                <h3>Your activity board starts here</h3>
+                <p>Cuando haya ventas, intercambios o listings activos, esta seccion mostrara las cartas con mas movimiento de la comunidad.</p>
+                <a href="{% if user.is_authenticated %}{% url 'register_cards' %}{% else %}{% url 'register' %}{% endif %}" class="button button--primary">
+                    {% if user.is_authenticated %}List First Card{% else %}Join Marketplace{% endif %}
                 </a>
             </div>
         </article>
