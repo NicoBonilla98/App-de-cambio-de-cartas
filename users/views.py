@@ -25,6 +25,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_GET, require_POST
 
 from .forms import CardForm, UploadFileForm, UserRegisterForm
@@ -50,6 +51,19 @@ def _pagination_prefix(request):
     query_params.pop('page', None)
     querystring = query_params.urlencode()
     return f"{querystring}&" if querystring else ''
+
+
+def _safe_next_url(request, candidate):
+    candidate = (candidate or '').strip()
+    if not candidate:
+        return None
+    if url_has_allowed_host_and_scheme(
+        candidate,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return candidate
+    return None
 
 
 def _client_rate_limit_key(request):
@@ -636,6 +650,7 @@ def card_list(request):
     })
 
 @login_required
+@require_POST
 def add_card(request, card_id, is_owned):
     card = get_object_or_404(Card, id=card_id)
     user_card = UserCard.objects.create(user=request.user, card=card, is_owned=bool(is_owned))
@@ -643,6 +658,7 @@ def add_card(request, card_id, is_owned):
     return redirect('card_list')
 
 @login_required
+@require_POST
 def delete_card(request, card_id):
     card = get_object_or_404(UserCard, id=card_id, user=request.user)
     card.delete()
@@ -878,6 +894,7 @@ def search_card(request):
     return render(request, 'users/search_results.html', {'matching_cards': []})
 
 @login_required
+@require_POST
 def edit_card_quantity(request, card_id):
     if request.method == 'POST':
         new_quantity = request.POST.get('edit_card_quantity')
@@ -980,16 +997,16 @@ def search_users_with_desired_card(request):
 
 
 @login_required
+@require_POST
 def update_desired_match_mode(request, user_card_id):
     desired_card = get_object_or_404(UserCard, id=user_card_id, user=request.user, is_owned=False)
-    if request.method == 'POST':
-        desired_match_mode = request.POST.get('desired_match_mode', 'exact_printing')
-        if desired_match_mode not in dict(UserCard.DESIRED_MATCH_CHOICES):
-            desired_match_mode = 'exact_printing'
-        desired_card.desired_match_mode = desired_match_mode
-        desired_card.save(update_fields=['desired_match_mode'])
-        messages.success(request, 'La preferencia de match se actualizo correctamente.')
-    return redirect(request.POST.get('next') or 'card_list')
+    desired_match_mode = request.POST.get('desired_match_mode', 'exact_printing')
+    if desired_match_mode not in dict(UserCard.DESIRED_MATCH_CHOICES):
+        desired_match_mode = 'exact_printing'
+    desired_card.desired_match_mode = desired_match_mode
+    desired_card.save(update_fields=['desired_match_mode'])
+    messages.success(request, 'La preferencia de match se actualizo correctamente.')
+    return redirect(_safe_next_url(request, request.POST.get('next')) or 'card_list')
 
 @login_required
 def edit_user_profile(request):
@@ -1108,6 +1125,7 @@ def view_user_cards(request):
     })
 
 @login_required
+@require_POST
 def send_trade_request(request):
     if request.method == 'POST':
         desired_card = request.POST.get('desired_card')
@@ -1156,6 +1174,7 @@ def send_trade_request(request):
         return redirect('list_notifications')
 
 @login_required
+@require_POST
 def send_notification(request):
     if request.method == 'POST':
         card_name = request.POST.get('card_name')
@@ -1206,6 +1225,7 @@ def list_notifications(request):
 
 
 @login_required
+@require_POST
 def resolve_notification(request, notification_id):
     notification = get_object_or_404(Notification, id=notification_id, receiver=request.user)
     if request.method == 'POST':
@@ -1214,6 +1234,7 @@ def resolve_notification(request, notification_id):
     return redirect('list_notifications')
 
 @login_required
+@require_POST
 def accept_notification(request):
     if request.method == 'POST':
         notification_id = request.POST.get('notification_id')
@@ -1249,6 +1270,7 @@ def accept_notification(request):
         return redirect(f"/users/view_user_cards/?user_id={notification.sender.id}&notification_id={notification.id}")
 
 @login_required
+@require_POST
 def reject_notification(request):
     if request.method == 'POST':
         notification_id = request.POST.get('notification_id')
@@ -1268,7 +1290,11 @@ def reject_notification(request):
         return redirect('list_notifications')
 
 @login_required
+@require_POST
 def reject_offer(request):
+    if 'notification_id' not in request.POST:
+        messages.error(request, 'No se encontro la notificacion de la oferta.')
+        return redirect('list_notifications')
     if request.method == 'POST':
         # Cambiar la notificación aceptada a tipo resuelta
         if 'notification_id' in request.POST:
@@ -1289,6 +1315,7 @@ def reject_offer(request):
         return redirect('list_notifications')
 
 @login_required
+@require_POST
 def mark_all_resolved(request):
     if request.method == 'POST':
         Notification.objects.filter(receiver=request.user).update(is_read=True)
@@ -1321,96 +1348,99 @@ def list_exchanges(request):
     })
 
 @login_required
+@require_POST
 def make_purchase_offer(request):
-    if request.method == 'POST':
-        card_name = request.POST.get('card_name')
-        owner_id = request.POST.get('owner_id')
-        listing_id = request.POST.get('listing_id')
-        next_url = request.POST.get('next') or request.META.get('HTTP_REFERER')
-        purchase_mode = request.POST.get('purchase_mode', 'offer')
-        buyer_message = request.POST.get('message', '').strip()
+    card_name = request.POST.get('card_name')
+    owner_id = request.POST.get('owner_id')
+    listing_id = request.POST.get('listing_id')
+    next_url = (
+        _safe_next_url(request, request.POST.get('next'))
+        or _safe_next_url(request, request.META.get('HTTP_REFERER'))
+    )
+    purchase_mode = request.POST.get('purchase_mode', 'offer')
+    buyer_message = request.POST.get('message', '').strip()
 
-        if card_name and owner_id:
-            listing = None
-            if listing_id:
-                listing = get_object_or_404(
-                    UserCard.objects.select_related('card', 'user'),
-                    id=listing_id,
-                    user_id=owner_id,
-                    is_owned=True,
-                    quantity_owned__gt=0,
-                )
-                card_name = listing.card.name
-            owner = listing.user if listing else get_object_or_404(CustomUser, id=owner_id)
-            if owner == request.user:
-                messages.error(request, 'No puedes comprar tu propia carta.')
+    if card_name and owner_id:
+        listing = None
+        if listing_id:
+            listing = get_object_or_404(
+                UserCard.objects.select_related('card', 'user'),
+                id=listing_id,
+                user_id=owner_id,
+                is_owned=True,
+                quantity_owned__gt=0,
+            )
+            card_name = listing.card.name
+        owner = listing.user if listing else get_object_or_404(CustomUser, id=owner_id)
+        if owner == request.user:
+            messages.error(request, 'No puedes comprar tu propia carta.')
+            return redirect(next_url or 'marketplace')
+
+        listing_value = _listing_value(listing) if listing else Decimal('0.00')
+        offer_amount = listing_value
+
+        if purchase_mode == 'offer':
+            if not listing or listing.listing_intent != 'sell_trade':
+                messages.error(request, 'Este listing no acepta ofertas negociables.')
+                return redirect(next_url or 'marketplace')
+            if listing_value <= Decimal('0.00'):
+                messages.error(request, 'No se puede negociar una oferta para una carta sin precio publicado.')
                 return redirect(next_url or 'marketplace')
 
-            listing_value = _listing_value(listing) if listing else Decimal('0.00')
-            offer_amount = listing_value
-
-            if purchase_mode == 'offer':
-                if not listing or listing.listing_intent != 'sell_trade':
-                    messages.error(request, 'Este listing no acepta ofertas negociables.')
-                    return redirect(next_url or 'marketplace')
-                if listing_value <= Decimal('0.00'):
-                    messages.error(request, 'No se puede negociar una oferta para una carta sin precio publicado.')
-                    return redirect(next_url or 'marketplace')
-
-                offer_amount = _to_decimal(request.POST.get('offer_amount'))
-                min_offer = (listing_value * Decimal('0.75')).quantize(Decimal('0.01'))
-                max_offer = (listing_value * Decimal('3.00')).quantize(Decimal('0.01'))
-                if offer_amount is None:
-                    messages.error(request, 'Ingresa un valor valido para la oferta.')
-                    return redirect(next_url or 'marketplace')
-                if offer_amount < min_offer or offer_amount > max_offer:
-                    messages.error(
-                        request,
-                        f'La oferta debe estar entre ${_format_money(min_offer)} y ${_format_money(max_offer)}.'
-                    )
-                    return redirect(next_url or 'marketplace')
-                message = (
-                    f"{request.user.username} ofrecio ${_format_money(offer_amount)} por {card_name}. "
-                    f"Precio publicado: ${_format_money(listing_value)}."
+            offer_amount = _to_decimal(request.POST.get('offer_amount'))
+            min_offer = (listing_value * Decimal('0.75')).quantize(Decimal('0.01'))
+            max_offer = (listing_value * Decimal('3.00')).quantize(Decimal('0.01'))
+            if offer_amount is None:
+                messages.error(request, 'Ingresa un valor valido para la oferta.')
+                return redirect(next_url or 'marketplace')
+            if offer_amount < min_offer or offer_amount > max_offer:
+                messages.error(
+                    request,
+                    f'La oferta debe estar entre ${_format_money(min_offer)} y ${_format_money(max_offer)}.'
                 )
-                success_message = f"Oferta enviada a {owner.username} para revision."
-            else:
-                purchase_mode = 'buy_now'
-                if listing and listing.listing_intent not in ['sell', 'sell_trade']:
-                    messages.error(request, 'Este listing no esta disponible para compra directa.')
-                    return redirect(next_url or 'marketplace')
-                message = (
-                    f"{request.user.username} quiere comprar de inmediato: {card_name} "
-                    f"por ${_format_money(offer_amount)}."
-                )
-                success_message = f"Solicitud de compra enviada a {owner.username}."
-
-            exchange = Exchange.objects.create(
-                sender=request.user,
-                receiver=owner,
-                listing=listing,
-                target_card=listing.card if listing else Card.objects.filter(name__iexact=card_name).first(),
-                sender_cards=f'listing:{listing_id}' if listing_id else '',
-                receiver_cards=card_name,
-                status='pending',
-                exchange_type='sale',
-                purchase_mode=purchase_mode,
-                offer_amount=offer_amount,
-                agreed_price=offer_amount,
-                message=buyer_message,
+                return redirect(next_url or 'marketplace')
+            message = (
+                f"{request.user.username} ofrecio ${_format_money(offer_amount)} por {card_name}. "
+                f"Precio publicado: ${_format_money(listing_value)}."
             )
-            Notification.objects.create(
-                sender=request.user,
-                receiver=owner,
-                title='Compra directa' if purchase_mode == 'buy_now' else 'Nueva oferta de compra',
-                message=message,
-                category='offer',
-                action_url=reverse('active_ritual_offers'),
-                type='action'
+            success_message = f"Oferta enviada a {owner.username} para revision."
+        else:
+            purchase_mode = 'buy_now'
+            if listing and listing.listing_intent not in ['sell', 'sell_trade']:
+                messages.error(request, 'Este listing no esta disponible para compra directa.')
+                return redirect(next_url or 'marketplace')
+            message = (
+                f"{request.user.username} quiere comprar de inmediato: {card_name} "
+                f"por ${_format_money(offer_amount)}."
             )
-            messages.success(request, success_message)
+            success_message = f"Solicitud de compra enviada a {owner.username}."
 
-        return redirect(next_url or 'marketplace')
+        Exchange.objects.create(
+            sender=request.user,
+            receiver=owner,
+            listing=listing,
+            target_card=listing.card if listing else Card.objects.filter(name__iexact=card_name).first(),
+            sender_cards=f'listing:{listing_id}' if listing_id else '',
+            receiver_cards=card_name,
+            status='pending',
+            exchange_type='sale',
+            purchase_mode=purchase_mode,
+            offer_amount=offer_amount,
+            agreed_price=offer_amount,
+            message=buyer_message,
+        )
+        Notification.objects.create(
+            sender=request.user,
+            receiver=owner,
+            title='Compra directa' if purchase_mode == 'buy_now' else 'Nueva oferta de compra',
+            message=message,
+            category='offer',
+            action_url=reverse('active_ritual_offers'),
+            type='action'
+        )
+        messages.success(request, success_message)
+
+    return redirect(next_url or 'marketplace')
 
 @login_required
 def pending_transactions(request):
@@ -1886,6 +1916,7 @@ def upload_file(request):
     return render(request, 'users/upload_file.html', context)
 
 @login_required
+@require_POST
 def import_cards(request):
     if request.method == 'POST':
         try:
@@ -1921,6 +1952,7 @@ def add_to_owned_cards(request):
         return JsonResponse({'status': 'error', 'message': str(e)})
 
 @login_required
+@require_POST
 def create_user_cards_from_txt(request):
     if request.method == 'POST':
         try:

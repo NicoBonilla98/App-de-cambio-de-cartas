@@ -3,6 +3,9 @@
 *.pyc
 __pycache__
 db.sqlite3
+*.sqlite3
+sqlite_probe*.tmp
+staticfiles/
 media
 
 # Backup files # 
@@ -89,6 +92,7 @@ coverage.xml
 
 # pyenv 
 .python-version 
+!.python-version
 
 # celery 
 celerybeat-schedule.* 
